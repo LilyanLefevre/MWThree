@@ -1,7 +1,7 @@
 {
-  "name": "@mwthree/iw5-core",
+  "name": "@mwthree/iw5-collision",
   "version": "0.1.0",
-  "description": "MW3 IW5 binary parsers: FastFile decompression, zone loader, asset parsers",
+  "description": "MW3 IW5 clipMap_t parser and Rapier3D collision builder",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,12 +18,11 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run"
   },
-  "license": "MIT",
   "dependencies": {
-    "@types/node": "^24.13.3",
-    "pako": "^3.0.1"
-  }
+    "@dimforge/rapier3d-compat": "^0.19.3",
+    "@mwthree/iw5-core": "*"
+  },
+  "license": "MIT"
 }

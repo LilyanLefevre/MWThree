@@ -2,3 +2,7 @@ node_modules/
 dist/
 .DS_Store
 *.log
+
+# Fichiers de jeu volumineux (non versionnés)
+inputs/**/*.ff
+inputs/**/*.iwd

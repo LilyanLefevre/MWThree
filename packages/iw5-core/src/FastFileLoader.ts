@@ -1,111 +1,139 @@
-// packages/iw5-core/src/FastFileLoader.ts
 import * as pako from 'pako'
 
-const FASTFILE_MAGIC = 0x303066665749; // 'IWff00' as little-endian 64-bit integer, or just 'IWff0100' for MW3
-const FASTFILE_VERSION = 0x01; // MW3 FastFile version
+export const SUPPORTED_MAGICS = ['IWff0100', 'IW4x'] as const
+export type FastFileMagic = typeof SUPPORTED_MAGICS[number]
 
-interface FastFileHeader {
-  magic: number; // 'IWff0100'
-  version: number;
-  // Add other header fields as discovered through reverse engineering
+export interface FastFileHeader {
+  magic: FastFileMagic
+  version: number
+}
+
+const HEADER_CONFIG: Record<FastFileMagic, { magicLen: number; headerSize: number }> = {
+  'IWff0100': { magicLen: 8, headerSize: 12 },
+  'IW4x': { magicLen: 4, headerSize: 8 },
 }
 
 export class FastFileLoader {
-  private buffer: ArrayBuffer;
+  private buffer: ArrayBuffer
+  private view: DataView
+  private textDecoder: TextDecoder
 
   constructor(buffer: ArrayBuffer) {
-    this.buffer = buffer;
+    this.buffer = buffer
+    this.view = new DataView(buffer)
+    this.textDecoder = new TextDecoder('ascii')
+  }
+
+  private readString(offset: number, length: number): string {
+    const bytes = new Uint8Array(this.buffer, offset, length)
+    return this.textDecoder.decode(bytes)
+  }
+
+  private detectMagic(raw: string): FastFileMagic {
+    const trimmed = raw.replace(/[^\x20-\x7E]/g, '')
+    for (const m of SUPPORTED_MAGICS) {
+      if (m.startsWith(trimmed)) return m
+    }
+    throw new Error(
+      `FastFile magic non reconnu. Reçu "${raw}" (nettoyé: "${trimmed}"). Supportés : ${SUPPORTED_MAGICS.join(', ')}`
+    )
   }
 
   private readHeader(): FastFileHeader {
-    const view = new DataView(this.buffer);
-    let offset = 0;
-
-    const magic = view.getUint32(offset, true); // Read first 4 bytes for magic
-    offset += 4;
-    const version = view.getUint32(offset, true); // Read next 4 bytes for version (assuming it's part of initial header for simplicity, will refine)
-    offset += 4;
-
-    // Simplified magic check for now. The actual magic is 'IWff0100'.
-    // We'll adjust this once we have a more precise understanding of the header structure.
-    // For MW3, the full magic is 0x30303166665749 for 'IWff100' (little-endian)
-    // A common simplified check is for 'IWff'
-    const expectedMagicPart = 0x66665749; // 'IWff'
-
-    if ((magic & 0xFFFFFFFF) !== expectedMagicPart) {
-      throw new Error(`FastFileLoader Error: Invalid FastFile magic. Expected part ${expectedMagicPart.toString(16)}, got ${(magic & 0xFFFFFFFF).toString(16)}`);
-    }
-    if (version !== FASTFILE_VERSION) {
-      throw new Error(`FastFileLoader Error: Unsupported FastFile version. Expected ${FASTFILE_VERSION}, got ${version}`);
+    if (this.buffer.byteLength < 12) {
+      throw new Error(
+        `FastFile trop petit : ${this.buffer.byteLength} bytes, minimum 12 requis`
+      )
     }
 
-    // TODO: Read more header fields based on COD Engine Research / OAT
+    // D'abord déterminer le format via la détection du magic
+    const magicRaw = this.readString(0, 8)
+    const magic = this.detectMagic(magicRaw)
+    const cfg = HEADER_CONFIG[magic]
+    const version = this.view.getUint32(cfg.magicLen, true)
 
-    return {
-      magic: magic, // Will likely be a combined 64-bit value or multiple fields
-      version: version,
-    };
+    // Vérification version pour IW4x (version doit être 3) et IWff0100 (version doit être 1)
+    if (magic === 'IWff0100' && version !== 1) {
+      throw new Error(
+        `Version FastFile non supportée pour ${magic}. Attendu 1, reçu ${version}`
+      )
+    }
+    if (magic === 'IW4x' && version !== 3) {
+      throw new Error(
+        `Version FastFile non supportée pour ${magic}. Attendu 3, reçu ${version}`
+      )
+    }
+
+    return { magic, version }
   }
 
-  private decompressZlibBlocks(offset: number): ArrayBuffer {
-    const decompressedChunks: Uint8Array[] = [];
-    let currentOffset = offset;
-    const dataView = new DataView(this.buffer);
-
-    while (currentOffset < this.buffer.byteLength) {
-      // Read 16-bit size (little-endian)
-      if (currentOffset + 2 > this.buffer.byteLength) {
-        console.warn("FastFileLoader Warning: Reached end of buffer prematurely while reading zlib block size.");
-        break;
+  private getHeaderSize(): number {
+    const magicRaw = this.readString(0, 4)
+    for (const [m, cfg] of Object.entries(HEADER_CONFIG)) {
+      if (m.startsWith(magicRaw) || magicRaw.startsWith(m)) {
+        return cfg.headerSize
       }
-      const blockSize = dataView.getUint16(currentOffset, true);
-      currentOffset += 2;
+    }
+    return 12 // fallback
+  }
+
+  private decompressZlibBlocks(): ArrayBuffer {
+    const chunks: Uint8Array[] = []
+    let offset = this.getHeaderSize()
+
+    while (offset < this.buffer.byteLength) {
+      if (offset + 2 > this.buffer.byteLength) {
+        console.warn(
+          'FastFileLoader: fin du buffer atteinte pendant la lecture de la taille du bloc zlib.'
+        )
+        break
+      }
+
+      const blockSize = this.view.getUint16(offset, true)
+      offset += 2
 
       if (blockSize === 0) {
-        // A block size of 0 usually indicates the end of the zlib blocks
-        break;
+        break
       }
 
-      // Ensure we have enough data for the zlib block
-      if (currentOffset + blockSize > this.buffer.byteLength) {
-        throw new Error(`FastFileLoader Error: Zlib block extends beyond buffer limits. Expected ${blockSize} bytes, but only ${this.buffer.byteLength - currentOffset} available.`);
+      if (offset + blockSize > this.buffer.byteLength) {
+        throw new Error(
+          `Bloc zlib hors limites : attendu ${blockSize} bytes, seulement ${this.buffer.byteLength - offset} disponibles.`
+        )
       }
 
-      const compressedData = new Uint8Array(this.buffer, currentOffset, blockSize);
-      currentOffset += blockSize;
+      const compressed = new Uint8Array(this.buffer, offset, blockSize)
+      offset += blockSize
 
       try {
-        const decompressed = pako.inflate(compressedData);
-        decompressedChunks.push(decompressed);
-      } catch (error: any) {
-        throw new Error(`FastFileLoader Error: Failed to decompress zlib block at offset ${currentOffset - blockSize}. ${error.message}`);
+        const decompressed = pako.inflate(compressed)
+        chunks.push(decompressed)
+      } catch (err: any) {
+        throw new Error(
+          `Échec décompression zlib à l'offset ${offset - blockSize} : ${err.message}`
+        )
       }
     }
-    
-    // Reconstitute the full decompressed buffer
-    const totalLength = decompressedChunks.reduce((acc, chunk) => acc + chunk.length, 0);
-    const resultBuffer = new Uint8Array(totalLength);
-    let writeOffset = 0;
-    for (const chunk of decompressedChunks) {
-      resultBuffer.set(chunk, writeOffset);
-      writeOffset += chunk.length;
+
+    const total = chunks.reduce((acc, c) => acc + c.length, 0)
+    const result = new Uint8Array(total)
+    let writeOffset = 0
+    for (const chunk of chunks) {
+      result.set(chunk, writeOffset)
+      writeOffset += chunk.length
     }
 
-    return resultBuffer.buffer;
+    return result.buffer
   }
 
-  public load(): ArrayBuffer {
-    console.log("Loading FastFile...");
-    const header = this.readHeader();
-    console.log("FastFile Header:", header);
-
-    // After the header, the zlib blocks start. Need to determine the exact offset.
-    // For now, assuming zlib blocks start right after the basic magic and version check.
-    // This offset needs to be refined based on actual FastFile structure.
-    const zlibBlocksStartOffset = 8; // Adjust this based on actual header size
-
-    const decompressedZone = this.decompressZlibBlocks(zlibBlocksStartOffset);
-    console.log(`FastFile decompressed. Original size: ${this.buffer.byteLength} bytes, Decompressed zone size: ${decompressedZone.byteLength} bytes`);
-    return decompressedZone;
+  load(): ArrayBuffer {
+    console.log('Chargement FastFile...')
+    const header = this.readHeader()
+    console.log(`FastFile : ${header.magic}, version ${header.version}`)
+    const zone = this.decompressZlibBlocks()
+    console.log(
+      `FastFile décompressé : ${this.buffer.byteLength} bytes → ${zone.byteLength} bytes`
+    )
+    return zone
   }
 }
