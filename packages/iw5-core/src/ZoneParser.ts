@@ -74,22 +74,13 @@ const XFILE_HEADER_BYTE_SIZE = 44
 
 export class ZoneParser {
   private view: DataView
-  private decoder: TextDecoder
 
   constructor(private buffer: ArrayBuffer) {
     this.view = new DataView(buffer)
-    this.decoder = new TextDecoder('ascii')
   }
 
   private u32(offset: number): number {
     return this.view.getUint32(offset, true)
-  }
-
-  private readString(offset: number, max: number): string {
-    const end = Math.min(offset + max, this.buffer.byteLength)
-    let len = 0
-    while (offset + len < end && this.view.getUint8(offset + len) !== 0) len++
-    return this.decoder.decode(new Uint8Array(this.buffer, offset, len))
   }
 
   parseHeader(): XFileHeader {
@@ -149,13 +140,14 @@ export class ZoneParser {
     const len = this.buffer.byteLength
     const searchStart = Math.max(0, len - 256)
     const bytes = new Uint8Array(this.buffer, searchStart, len - searchStart)
+    const decoder = new TextDecoder('ascii')
     let best = 'unknown'
     let i = bytes.length - 1
     while (i >= 0) {
       if (bytes[i] === 0) { i--; continue }
       let end = i + 1
       while (i > 0 && bytes[i - 1] !== 0) i--
-      const s = this.decoder.decode(bytes.slice(i, end))
+      const s = decoder.decode(bytes.slice(i, end))
       if (s.length > 2 && s.length <= 64 && /^[\w\-\/.]+$/.test(s)) {
         best = s
         break
