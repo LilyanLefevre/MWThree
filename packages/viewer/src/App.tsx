@@ -140,68 +140,8 @@ function App() {
   }, [folderHandle])
 
   return (
-    <>
-      <FolderSelector onFolderSelected={handleFolderSelected} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', pointerEvents: 'none' }}>
-        <div style={{
-          pointerEvents: 'auto',
-          position: 'absolute', top: 10, right: 10,
-          background: 'rgba(0,0,0,0.75)', color: 'white',
-          padding: 10, borderRadius: 5, zIndex: 100,
-          fontFamily: 'monospace', fontSize: 12,
-          maxHeight: '80vh', overflowY: 'auto', minWidth: 220,
-        }}>
-          {mapInfo && (
-            <>
-              <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{mapInfo.path}</div>
-              <div>Maps: {mapInfo.maps.length} &bull; Archives: {mapInfo.archives.length}</div>
-              <hr style={{ borderColor: '#555', margin: '6px 0' }} />
-              {mapInfo.maps.length === 0 && <div style={{ color: '#ff6' }}>Aucune map trouvée</div>}
-              {mapInfo.maps.map((m) => (
-                <div
-                  key={m}
-                  onClick={() => handleLoadMap(m)}
-                  style={{
-                    cursor: 'pointer', padding: '2px 4px',
-                    background: loading === m ? '#555' : 'transparent',
-                    borderRadius: 3,
-                  }}
-                >
-                  {m}
-                </div>
-              ))}
-            </>
-          )}
-          {result && (
-            <>
-              <hr style={{ borderColor: '#555', margin: '6px 0' }} />
-              {result.success ? (
-                <div style={{ color: '#6f6' }}>
-                  ✓ {result.fileName}<br />
-                  FF: {(result.compressedBytes / 1024 / 1024).toFixed(1)} MB →{' '}
-                  Zone: {(result.decompressedBytes / 1024 / 1024).toFixed(1)} MB
-                </div>
-              ) : (
-                <div style={{ color: '#f66' }}>
-                  ✗ {result.fileName}<br />
-                  {result.error}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div style={{
-        position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
-        background: 'rgba(0,0,0,0.5)', color: 'white',
-        padding: '4px 12px', borderRadius: 5, zIndex: 100,
-        fontFamily: 'monospace', fontSize: 11,
-      }}>
-        Clique sur le canvas pour le mode FPS &bull; WASD + Souris + ESPACE
-      </div>
-
-      <Canvas camera={{ position: [0, 3, 5], fov: 75 }}>
+    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
+      <Canvas camera={{ position: [0, 3, 5], fov: 75 }} style={{ width: '100%', height: '100%' }}>
         <ambientLight intensity={0.5} />
         <pointLight position={[10, 10, 10]} />
         <Physics gravity={[0, -9.81, 0]}>
@@ -214,7 +154,66 @@ function App() {
           <FPSCamera />
         </Physics>
       </Canvas>
-    </>
+
+      <FolderSelector onFolderSelected={handleFolderSelected} />
+
+      <div style={{
+        position: 'absolute', top: 50, right: 10, zIndex: 100,
+        background: 'rgba(0,0,0,0.75)', color: 'white',
+        padding: 10, borderRadius: 5,
+        fontFamily: 'monospace', fontSize: 12,
+        maxHeight: '80vh', overflowY: 'auto', minWidth: 220,
+      }}>
+        {mapInfo && (
+          <>
+            <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{mapInfo.path}</div>
+            <div>Maps: {mapInfo.maps.length} &bull; Archives: {mapInfo.archives.length}</div>
+            <hr style={{ borderColor: '#555', margin: '6px 0' }} />
+            {mapInfo.maps.length === 0 && <div style={{ color: '#ff6' }}>Aucune map trouvée</div>}
+            {loading && <div style={{ color: '#88f' }}>Chargement de {loading}...</div>}
+            {mapInfo.maps.map((m) => (
+              <div
+                key={m}
+                onClick={() => handleLoadMap(m)}
+                style={{
+                  cursor: 'pointer', padding: '2px 4px',
+                  background: loading === m ? '#555' : 'transparent',
+                  borderRadius: 3,
+                }}
+              >
+                {m}
+              </div>
+            ))}
+          </>
+        )}
+        {result && (
+          <>
+            <hr style={{ borderColor: '#555', margin: '6px 0' }} />
+            {result.success ? (
+              <div style={{ color: '#6f6' }}>
+                ✓ {result.fileName}<br />
+                FF: {(result.compressedBytes / 1024 / 1024).toFixed(1)} MB →{' '}
+                Zone: {(result.decompressedBytes / 1024 / 1024).toFixed(1)} MB
+              </div>
+            ) : (
+              <div style={{ color: '#f66' }}>
+                ✗ {result.fileName}<br />
+                {result.error}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div style={{
+        position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+        background: 'rgba(0,0,0,0.5)', color: 'white',
+        padding: '4px 12px', borderRadius: 5, zIndex: 100,
+        fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
+      }}>
+        Clique sur le canvas pour le mode FPS &bull; WASD + Souris + ESPACE
+      </div>
+    </div>
   )
 }
 
