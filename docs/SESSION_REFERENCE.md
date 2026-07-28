@@ -31,7 +31,7 @@ Pour l'instant, les tests utilisent un fichier synthétique IWff0100.
 ```
 mwthree/
 ├── .opencode/instructions.md     # Instructions de session
-├── ai/
+├── docs/
 │   ├── PLAN.md                   # Plan complet du projet
 │   └── SESSION_REFERENCE.md      # Ce fichier
 ├── inputs/
@@ -59,7 +59,6 @@ mwthree/
 │           ├── types.ts          # MapInfo interface
 │           ├── index.css         # Styles globaux
 │           └── main.tsx          # Entry point
-├── docs/
 ├── package.json                  # Root workspace
 ├── tsconfig.base.json            # Base TS config
 └── .gitignore
