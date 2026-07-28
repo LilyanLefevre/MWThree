@@ -1,12 +1,23 @@
 import * as pako from 'pako'
 
-export const SUPPORTED_MAGICS = ['IWff0100', 'IW4x'] as const
+export const SUPPORTED_MAGICS = ['IWff0100', 'IWffu100'] as const
 export type FastFileMagic = typeof SUPPORTED_MAGICS[number]
 
 export interface FastFileHeader {
   magic: FastFileMagic
   version: number
-  headerSize: number
+}
+
+const HEADER_SIZE = 12
+const PREFIX_SIZE = 9
+const AUTH_HEADER_SIZE = 0x4000
+const ZONE_OFFSET_UNSIGNED = HEADER_SIZE + PREFIX_SIZE
+const ZONE_OFFSET_SIGNED = HEADER_SIZE + PREFIX_SIZE + AUTH_HEADER_SIZE
+
+function bytesToArrayBuffer(data: Uint8Array): ArrayBuffer {
+  const ab = new ArrayBuffer(data.length)
+  new Uint8Array(ab).set(data)
+  return ab
 }
 
 export class FastFileLoader {
@@ -37,7 +48,7 @@ export class FastFileLoader {
       if (m.startsWith(trimmed)) return m
     }
     throw new Error(
-      `FastFile magic non reconnu. Reçu "${raw}" (nettoyé: "${trimmed}"). Supportés : ${SUPPORTED_MAGICS.join(', ')}`
+      `FastFile magic non reconnu. Reçu "${raw}". Supportés : ${SUPPORTED_MAGICS.join(', ')}`
     )
   }
 
@@ -50,107 +61,40 @@ export class FastFileLoader {
     const magic = this.detectMagic(magicRaw)
     const version = this.view.getUint32(8, true)
 
-    // Taille de l'en-tête : après le magic + version, les blocs commencent
-    // IW4x : 4 bytes magic + 4 bytes version = 8
-    // IWff0100 : 8 bytes magic + 4 bytes version = 12
-    const headerSize = magic === 'IW4x' ? 8 : 12
+    const zoneOffset = magic === 'IWff0100' ? ZONE_OFFSET_SIGNED : ZONE_OFFSET_UNSIGNED
 
-    console.log(`Header: magic="${magic}" version=${version} headerSize=${headerSize}`)
-    console.log(`Hex dump debut: ${this.readHex(0, 48)}`)
+    console.log(`Header: magic="${magic}" version=${version} fileSize=${this.buffer.byteLength}`)
+    console.log(`Hex debut: ${this.readHex(0, 32)}`)
+    console.log(`Zone offset: ${zoneOffset} (0x${zoneOffset.toString(16)})`)
 
-    return { magic, version, headerSize }
-  }
-
-  private tryDecompress(strategy: string, offset: number): { data: Uint8Array | null; nextOffset: number } {
-    if (offset >= this.buffer.byteLength) return { data: null, nextOffset: offset }
-    const remaining = this.buffer.byteLength - offset
-    const bytes = new Uint8Array(this.buffer, offset, remaining)
-
-    if (strategy === 'raw_zlib') {
-      // Tout le reste est un seul flux zlib
-      try {
-        const data = pako.inflate(bytes)
-        console.log(`  raw_zlib OK: ${remaining} bytes → ${data.length} bytes`)
-        return { data, nextOffset: this.buffer.byteLength }
-      } catch { return { data: null, nextOffset: offset } }
-    }
-
-    if (strategy === 'uint16_blocks') {
-      // Blocs avec taille uint16
-      const chunks: Uint8Array[] = []
-      let pos = offset
-      while (pos < this.buffer.byteLength) {
-        if (pos + 2 > this.buffer.byteLength) break
-        const size = this.view.getUint16(pos, true)
-        if (size === 0) break
-        pos += 2
-        if (pos + size > this.buffer.byteLength) break
-        try {
-          chunks.push(pako.inflate(new Uint8Array(this.buffer, pos, size)))
-        } catch { return { data: null, nextOffset: offset } }
-        pos += size
-      }
-      if (chunks.length === 0) return { data: null, nextOffset: offset }
-      const total = chunks.reduce((a, c) => a + c.length, 0)
-      const merged = new Uint8Array(total)
-      let off = 0
-      for (const c of chunks) { merged.set(c, off); off += c.length }
-      console.log(`  uint16_blocks OK: ${chunks.length} blocs → ${total} bytes`)
-      return { data: merged, nextOffset: pos }
-    }
-
-    if (strategy === 'uint32_blocks') {
-      // Blocs avec taille uint32
-      const chunks: Uint8Array[] = []
-      let pos = offset
-      while (pos < this.buffer.byteLength) {
-        if (pos + 4 > this.buffer.byteLength) break
-        const size = this.view.getUint32(pos, true)
-        if (size === 0) break
-        pos += 4
-        if (pos + size > this.buffer.byteLength) break
-        try {
-          chunks.push(pako.inflate(new Uint8Array(this.buffer, pos, size)))
-        } catch { return { data: null, nextOffset: offset } }
-        pos += size
-      }
-      if (chunks.length === 0) return { data: null, nextOffset: offset }
-      const total = chunks.reduce((a, c) => a + c.length, 0)
-      const merged = new Uint8Array(total)
-      let off = 0
-      for (const c of chunks) { merged.set(c, off); off += c.length }
-      console.log(`  uint32_blocks OK: ${chunks.length} blocs → ${total} bytes`)
-      return { data: merged, nextOffset: pos }
-    }
-
-    return { data: null, nextOffset: offset }
+    return { magic, version }
   }
 
   load(): ArrayBuffer {
-    console.log(`Chargement FastFile: ${this.buffer.byteLength} bytes`)
+    console.log(`\nChargement: ${this.buffer.byteLength} bytes`)
     const header = this.readHeader()
 
-    // Essaye plusieurs stratégies de décompression
-    const strategies = ['raw_zlib', 'uint16_blocks', 'uint32_blocks']
-    for (const s of strategies) {
-      console.log(`Essai stratégie: ${s} (offset=${header.headerSize})`)
-      const result = this.tryDecompress(s, header.headerSize)
-      if (result.data) {
-        console.log(`✓ Succès: ${s} → ${result.data.length} bytes`)
-        const ab = new ArrayBuffer(result.data.length)
-        new Uint8Array(ab).set(result.data)
-        return ab
-      }
+    const zoneOffset = header.magic === 'IWff0100' ? ZONE_OFFSET_SIGNED : ZONE_OFFSET_UNSIGNED
+
+    if (this.buffer.byteLength < zoneOffset) {
+      throw new Error(
+        `Fichier trop petit pour ${header.magic}: ${this.buffer.byteLength} bytes, ` +
+        `besoin d'au moins ${zoneOffset}`
+      )
     }
 
-    // Si rien n'a marché, affiche un dump hexa pour debug
-    const remaining = this.buffer.byteLength - header.headerSize
-    const dumpSize = Math.min(64, Math.max(remaining, 16))
-    console.log(`Hex dump après header: ${this.readHex(header.headerSize, dumpSize)}`)
+    const compressed = new Uint8Array(this.buffer, zoneOffset)
+    console.log(`Donnees compressees: ${compressed.length} bytes`)
+    console.log(`Hex debut compression: ${this.readHex(zoneOffset, 16)}`)
 
-    throw new Error(
-      `Impossible de décompresser le FastFile (magic=${header.magic}, version=${header.version}). ` +
-      `Taille: ${this.buffer.byteLength} bytes, header: ${header.headerSize} bytes.`
-    )
+    try {
+      const decompressed = pako.inflate(compressed)
+      console.log(`✓ Decompression reussie: ${compressed.length} → ${decompressed.length} bytes`)
+      return bytesToArrayBuffer(decompressed)
+    } catch (e) {
+      throw new Error(
+        `Echec decompression ${header.magic} v${header.version}: ${e}`
+      )
+    }
   }
 }
