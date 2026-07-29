@@ -183,35 +183,42 @@ Les strings de type chemin/asset existent BIEN dans les blocks :
                                               40: STRINGTABLE
 ```
 
-### Header sizes (zone format) par type
+### Structure des assets dans le stream (OAT confirmé)
+
+Le format zone = **layout mémoire** du struct écrit tel quel dans le stream.
+Les pointeurs sont stockés sur 32 bits (encoded: FOLLOWING/INSERT/OFFSET).
+
+Pattern de chargement OAT (`ContentLoaderBase::LoadXString`) :
+1. Lire le struct complet du stream : `m_stream.Load<T>(data)` (sizeof(T) bytes)
+2. Pour chaque champ pointeur dans le struct :
+   - Si valeur == POINTER_FOLLOWING (0xFFFFFFFF) → données inline APRÈS le struct
+   - Si valeur == OFFSET (0x0XXXXXXX) → données dans un block
+   - Si valeur == INSERT (0xFFFFFFFE) → sera patché plus tard
+
+**Ordre des inline data :** chaque champ POINTER_FOLLOWING est traité dans
+l'ordre de déclaration des champs du struct. Les données inline sont
+concaténées dans cet ordre APRÈS le header du struct.
+
+**Taille totale d'une entrée = sizeof(struct) + sum(données inline de chaque champ POINTER_FOLLOWING)**
+
+### Header sizes (zone format = sizeof struct en 32-bit)
 
 Ces tailles sont calculées à partir des structures OAT `IW5_Assets.h`.
-La taille "zone format" inclut tous les champs fixes lus séquentiellement
-depuis le stream (pointeurs, ints, shorts, chars), MAIS PAS les données
-variables qui suivent inline (arrays countés sans `set block`).
+Ce sont les `sizeof` des structs en format 32-bit (pointeurs = 4 bytes).
 
 ```
-  0: 72   1: 72   2: 88   3: 36   4: 308   5: 100 ← OAT
-  6: 16   7: 16   8: 100  9: 228  10: 32   11: 12
- 12: 136  13: 44  14: 264  ← OAT   15: 16   16: 8
- 17: 44   18: 12  19: 112 20: 124  21: 636  22: 24
- 23: 24   24: 24  25: 12  26: 176  27: 8    28: 164
- 29: 200  30: 0   31: 52  32: 8    33: 8    34: 8
- 35: 8    36: 8   37: 8   38: 12   39: 24   ← OAT 40: 16
- 41: 28   42: 12  43: 120 44: 700  45: 60
+  0: 72    1: 72    2: 88    3: 36    4: 308   5: 100
+  6: 16    7: 16    8: 100   9: 228  10: 32   11: 12
+ 12: 136  13: 44   14: 264  15: 16   16: 8
+ 17: 44   18: 12   19: 112  20: 124  21: 636  22: 24
+ 23: 24   24: 24   25: 12   26: 176  27: 8    28: 164
+ 29: 200  30: 0    31: 52   32: 8    33: 8    34: 8
+ 35: 8    36: 8    37: 8    38: 12   39: 24   40: 16
+ 41: 28   42: 12   43: 120  44: 700  45: 60
 ```
 
-**IMPORTANT :** Les tailles OAT (annotées `← OAT`) diffèrent pour certains types.
-Exemples :
-- **MATERIAL (5) :** j'avais 104, OAT donne 100 (différence de 4 bytes)
-- **CLIPMAP (14) :** j'avais 256, OAT donne 264
-- **SCRIPTFILE (39) :** j'avais 16, OAT donne 24 (4e champ `bytecodeLen`)
-- **STRINGTABLE (40) :** 16 confirmé (name + columnCount + rowCount + values*)
-
-⚠️ **NB :** Les données variables suivant le header (ex: buffer de RawFile,
-cell values de StringTable) ne sont PAS incluses dans ces tailles.
-La consommation stream réelle = header + name string (si POINTER_FOLLOWING)
-+ données variables de chaque champ POINTER_FOLLOWING ou counted array inline.
+**NB :** Ces tailles ne sont que le header FIXE. La consommation stream réelle
+inclut les données inline pour chaque champ POINTER_FOLLOWING.
 
 ### Distribution des types (mp_dome.ff, 792 assets)
 
@@ -381,7 +388,77 @@ Data type: binaire (~35% printable ASCII)
 
 ---
 
-## 9. Problèmes Ouverts
+## 9. Loading Infrastructure OAT
+
+### ContentLoaderBase (src/ZoneLoading/Loading/)
+
+```cpp
+class ContentLoaderBase {
+    void LoadXString(bool atStreamStart);
+    void LoadXStringArray(bool atStreamStart, size_t count);
+    ZonePointerType GetZonePointerType(const void* zonePtr);
+    // FOLLOWING = m_zone_ptr_following = -1 (0xFFFFFFFF en 32-bit)
+    // INSERT = m_zone_ptr_insert = -2 (0xFFFFFFFE en 32-bit)
+    // OFFSET = toute autre valeur
+};
+
+// ZoneInputStream gère:
+//   Load<T>(ptr)        → lit sizeof(T) bytes du stream
+//   LoadNullTerminated() → lit une string jusqu'à \0
+//   Alloc<T>(alignment)  → alloue dans la zone mémoire
+//   ConvertOffsetToPointerNative<T>(ptr) → convertit encoded offset en pointeur natif
+```
+
+### ContentLoaderIW5 (src/ZoneLoading/Game/IW5/)
+
+Charge séquentiellement :
+1. `XAssetList` { ScriptStringList, int assetCount, XAsset* assets }
+2. `ScriptStringList` (si ptr FOLLOWING) → charge les script strings
+3. Pour chaque `XAsset` { type, header ptr } (si header ptr FOLLOWING) :
+   - `m_stream.Load<XAsset>(varXAsset)` → lit {type, ptr} du stream
+   - Dispatch par type : `Loader_##typeName::Load()`
+   - Chaque Loader lit le struct complet + ses données FOLLOWING
+
+### Auto-Generated Loaders
+
+Les loaders sont générés par `ZoneCodeGenerator` (src/ZoneCodeGenerator/).
+Le code généré (non commité, créé au build) itère les champs de chaque struct
+et résout les pointeurs FOLLOWING en lisant les données inline.
+
+**Fichier source des structs :** `src/Common/Game/IW5/IW5_Assets.h`
+**Templates de génération (partiels) :**
+- `src/ObjLoading/XModel/LoaderXModel.cpp.template`
+- `src/ObjWriting/XModel/XModelDumper.cpp.template`
+
+### Asset types avec support complet OAT (dump + load)
+
+D'après `docs/SupportedAssetTypes.md` :
+- XModel, Material, GfxImage, MenuList, Menu, LocalizeEntry
+- WeaponAttachment, WeaponCompleteDef, RawFile, StringTable, LeaderboardDef
+- ScriptFile (binaire seulement)
+
+**SANS support** (ni dump ni load) :
+- PhysPreset, PhysCollmap, XAnimParts, XModelSurfs, PixelShader, VertexShader
+- VertexDecl, TechniqueSet, Sound, SndCurve, LoadedSound, ClipMap, ComWorld
+- GlassWorld, PathData, VehicleTrack, MapEnts, FxWorld, GfxWorld
+- LightDef, Font, FxEffectDef, ImpactFx, SurfaceFx, StructuredData, Tracer, Vehicle
+
+### 37.6 MB de following data non trackée
+
+Le gap de 37.6 MB entre le dernier header d'asset (0x6B190) et blockStart
+(0x25FFB61) = somme des données inline POINTER_FOLLOWING de TOUS les assets.
+
+Répartition probable par type :
+- TECHNIQUE_SET (330) : techniques[54], chaque MaterialTechnique a passArray
+- SOUND (213) : alias liste + snd_alias_t structs + SoundFile
+- XMODEL (86) : boneNames, quats, trans, baseMat, materialHandles, collSurfs
+- FX (83) : FxEffectDef avec effet elements
+- XANIMPARTS (16) : delta parts, indices, notify arrays
+- STRINGTABLE (16) ✓ déjà tracké (557KB)
+- MATERIAL (12) : textureTable, constantTable, stateBitsTable
+- RAWFILE (6) ✓ déjà tracké
+
+## 10. Problèmes Ouverts
 
 ### A. Encodage pool-based des pointeurs
 
