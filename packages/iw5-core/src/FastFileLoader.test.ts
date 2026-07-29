@@ -2,42 +2,49 @@ import { describe, it, expect } from 'vitest'
 import * as pako from 'pako'
 import { FastFileLoader } from './FastFileLoader.js'
 
-function makeHeaderBytes(magic: string, version = 1): Uint8Array {
-  const buf = new Uint8Array(12)
-  const enc = new TextEncoder()
-  buf.set(enc.encode(magic), 0)
-  const dv = new DataView(buf.buffer)
-  dv.setUint32(8, version, true)
-  return buf
-}
+const CHUNK_SIZE = 0x2000
 
-function makePrefix(): Uint8Array {
-  return new Uint8Array(9)
-}
-
-function makeAuthHeader(): Uint8Array {
-  return new Uint8Array(0x4000)
+function padToChunk(data: Uint8Array): Uint8Array {
+  if (data.length >= CHUNK_SIZE) return data
+  const padded = new Uint8Array(CHUNK_SIZE)
+  padded.set(data)
+  return padded
 }
 
 function buildSignedFF(payload: Uint8Array, version = 1): ArrayBuffer {
-  const header = makeHeaderBytes('IWff0100', version)
-  const prefix = makePrefix()
-  const auth = makeAuthHeader()
+  const header = new Uint8Array(12)
+  const enc = new TextEncoder()
+  header.set(enc.encode('IWff0100'), 0)
+  new DataView(header.buffer).setUint32(8, version, true)
+
+  const prefix = new Uint8Array(9)
+  const auth = new Uint8Array(0x2000)
   const compressed = pako.deflate(payload)
 
-  const total = header.length + prefix.length + auth.length + compressed.length
+  const hashChunk = new Uint8Array(CHUNK_SIZE)
+  const dataChunks: Uint8Array[] = []
+
+  for (let off = 0; off < compressed.length; off += CHUNK_SIZE) {
+    const chunk = compressed.subarray(off, off + CHUNK_SIZE)
+    dataChunks.push(chunk.length < CHUNK_SIZE ? padToChunk(chunk) : chunk)
+  }
+
+  const parts = [header, prefix, auth, hashChunk, ...dataChunks]
+  const total = parts.reduce((s, p) => s + p.length, 0)
   const buf = new Uint8Array(total)
-  buf.set(header)
-  buf.set(prefix, header.length)
-  buf.set(auth, header.length + prefix.length)
-  buf.set(compressed, header.length + prefix.length + auth.length)
+  let pos = 0
+  for (const p of parts) { buf.set(p, pos); pos += p.length }
 
   return buf.buffer
 }
 
 function buildUnsignedFF(payload: Uint8Array, version = 1): ArrayBuffer {
-  const header = makeHeaderBytes('IWffu100', version)
-  const prefix = makePrefix()
+  const header = new Uint8Array(12)
+  const enc = new TextEncoder()
+  header.set(enc.encode('IWffu100'), 0)
+  new DataView(header.buffer).setUint32(8, version, true)
+
+  const prefix = new Uint8Array(9)
   const compressed = pako.deflate(payload)
 
   const total = header.length + prefix.length + compressed.length
@@ -68,9 +75,18 @@ describe('FastFileLoader', () => {
     expect(text).toBe('Zone data unsigned!')
   })
 
+  it('devrait decompresser un FF signe avec donnees multi-chunks', () => {
+    const payload = new Uint8Array(CHUNK_SIZE * 3)
+    for (let i = 0; i < payload.length; i++) payload[i] = i & 0xFF
+    const buf = buildSignedFF(payload)
+    const loader = new FastFileLoader(buf)
+    const zone = loader.load()
+    expect(new Uint8Array(zone)).toEqual(payload)
+  })
+
   it('devrait rejeter un buffer vide', () => {
     const loader = new FastFileLoader(new ArrayBuffer(0))
-    expect(() => loader.load()).toThrow(/trop petit/)
+    expect(() => loader.load()).toThrow(/too small/)
   })
 
   it('devrait rejeter un magic inconnu', () => {
@@ -78,22 +94,22 @@ describe('FastFileLoader', () => {
     for (let i = 0; i < 8; i++) new DataView(buf).setUint8(i, 0x58)
     new DataView(buf).setUint32(8, 1, true)
     const loader = new FastFileLoader(buf)
-    expect(() => loader.load()).toThrow(/magic non reconnu/)
+    expect(() => loader.load()).toThrow(/magic/)
   })
 
   it('devrait rejeter un FF signe trop petit', () => {
     const buf = new ArrayBuffer(100)
-    const header = makeHeaderBytes('IWff0100')
-    new Uint8Array(buf).set(header)
+    const enc = new TextEncoder()
+    new Uint8Array(buf).set(enc.encode('IWff0100'))
     const loader = new FastFileLoader(buf)
-    expect(() => loader.load()).toThrow(/trop petit/)
+    expect(() => loader.load()).toThrow(/too small/)
   })
 
   it('devrait rejeter un FF non signe trop petit', () => {
     const buf = new ArrayBuffer(15)
-    const header = makeHeaderBytes('IWffu100')
-    new Uint8Array(buf).set(header)
+    const enc = new TextEncoder()
+    new Uint8Array(buf).set(enc.encode('IWffu100'))
     const loader = new FastFileLoader(buf)
-    expect(() => loader.load()).toThrow(/trop petit/)
+    expect(() => loader.load()).toThrow(/too small/)
   })
 })
