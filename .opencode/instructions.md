@@ -1,7 +1,13 @@
 Tu es en train de m'aider à construire un explorateur MW3 jouable dans le navigateur.
 Lis `ai/PLAN.md` et `ai/SESSION_REFERENCE.md` pour comprendre le projet, l'état d'avancement et la structure.
 
-Dernière phase en cours : Phase 1 — Décompression FastFile.
-La map de test est `inputs/mp_seatown/mp_seatown.ff`.
+Phase 0 complétée (fondations : monorepo, builds, tests, scene 3D, FPS basique, détection MW3).
+Prochaine phase : Phase 1 — Décompression FastFile (support IWff0100 OK, IW4x à investiguer).
 
-Commence chaque session en lisant `ai/SESSION_REFERENCE.md` pour te remettre à jour.
+La map de test est `inputs/mp_seatown/mp_seatown.ff` (format IW4x).
+Commence en lisant `ai/SESSION_REFERENCE.md` pour te remettre à jour.
+
+Commandes essentielles :
+- `npm run dev` → lancer le viewer
+- `npm run build` → build complet
+- `npm run test -w packages/iw5-core` → tests

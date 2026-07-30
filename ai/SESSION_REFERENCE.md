@@ -16,35 +16,53 @@
 
 ```
 inputs/mp_seatown/
-├── mp_seatown.ff        # FastFile principal
+├── mp_seatown.ff        # Format IW4x (magic: IW4x, version 3)
 ├── mp_seatown_load.ff   # FastFile de chargement
 ├── mp_seatown.iwd       # Archive textures/sons
 └── mp_seatown.arena     # Configuration de map
 ```
 
-Utiliser `inputs/mp_seatown/mp_seatown.ff` comme fichier de référence
-pour valider chaque phase.
+**Note :** `mp_seatown.ff` est au format **IW4x** (pas IWff0100 standard MW3).
+Le support IW4x nécessite plus de RE → sera traité en Phase 1.
+Pour l'instant, les tests utilisent un fichier synthétique IWff0100.
 
 ## Structure du projet
 
 ```
 mwthree/
-├── ai/                   # Documents de cadrage (ce fichier + PLAN.md)
-├── inputs/               # Fichiers de test (mp_seatown/)
+├── .opencode/instructions.md     # Instructions de session
+├── ai/
+│   ├── PLAN.md                   # Plan complet du projet
+│   └── SESSION_REFERENCE.md      # Ce fichier
+├── inputs/
+│   └── mp_seatown/               # Fichiers de test (IW4x)
 ├── packages/
-│   ├── iw5-core/         # Parsers binaires (FF, zone, assets)
+│   ├── iw5-core/                 # Parsers binaires ✓ builds + tests
+│   │   ├── src/
+│   │   │   ├── index.ts          # Exports publics
+│   │   │   ├── FastFileLoader.ts # Décompression FF (IWff0100 ok, IW4x partiel)
+│   │   │   └── FastFileLoader.test.ts
+│   │   ├── tsconfig.json
+│   │   ├── vitest.config.ts
+│   │   └── package.json          # @mwthree/iw5-core
+│   ├── iw5-collision/            # Collision Rapier3D (scaffolding)
 │   │   └── src/
-│   │       └── FastFileLoader.ts  # Phase 1 en cours
-│   ├── iw5-collision/    # clipMap_t → colliders Rapier3D (Phase 3)
-│   └── viewer/           # App React Three Fiber
+│   │       └── index.ts          # Stub
+│   │   ├── tsconfig.json
+│   │   └── package.json          # @mwthree/iw5-collision
+│   └── viewer/                   # App React Three Fiber ✓ builds
 │       └── src/
-│           ├── App.tsx               # Scene 3D + sélecteur dossier
+│           ├── App.tsx           # Scene 3D + détection MW3
 │           ├── components/
-│           │   └── FolderSelector.tsx  # showDirectoryPicker()
-│           └── index.css             # Styles globaux
-├── docs/                 # Notes RE, layouts structs
-├── package.json          # Workspace root
-└── tsconfig.base.json    # Base TS config
+│           │   ├── FolderSelector.tsx  # showDirectoryPicker()
+│           │   └── FPSCamera.tsx       # WASD + souris FPS
+│           ├── types.ts          # MapInfo interface
+│           ├── index.css         # Styles globaux
+│           └── main.tsx          # Entry point
+├── docs/
+├── package.json                  # Root workspace
+├── tsconfig.base.json            # Base TS config
+└── .gitignore
 ```
 
 ## Stack technique
@@ -58,43 +76,42 @@ mwthree/
 | Rapier3D                  | Moteur physique                    | @dimforge/rapier3d-compat         |
 | @react-three/rapier       | Pont Rapier3D ↔ R3F               | @react-three/rapier               |
 | pako                      | Décompression zlib des FF          | iw5-core                          |
+| vitest                    | Tests unitaires                    | root (devDep)                     |
 | fflate                    | Lecture .iwd (zip)                 | (à installer Phase 5)             |
 
 ## Commandes utiles
 
 ```bash
-# Lancer l'app viewer en dev
+# Dev (viewer avec HMR)
+npm run dev
+
+# Build complet (iw5-core + iw5-collision + viewer)
+npm run build
+
+# Tests
+npm run test -w packages/iw5-core
+
+# Tester tous les packages
+npm run test
+
+# Typecheck tous les packages
+npm run typecheck
+
+# Lancer le viewer standalone
 cd packages/viewer && npm run dev
-
-# Installer deps dans un package
-npm install <pkg> --workspace=<workspace-name>
-
-# Build viewer
-npm run build --workspace=packages/viewer
 ```
 
-## Architecture
+## Problèmes ouverts
 
-```
-Installation MW3 locale
-  ↓ [File System Access API]
-Sélecteur dossier → Détection zone/*.ff + main/*.iwd
-  ↓
-FastFileLoader (Phase 1) — décompresse .ff → zone brute
-  ↓
-ZoneParser + PointerResolver (Phase 2) — parse XFile → assets
-  ↓
-AssetParsers (Phase 2-5) — clipMap_t, GfxWorld, XModel, Material, Image
-  ↓                          ↓
-Rapier3D Collision (Ph3)    Three.js Renderer (Ph4-5)
-  ↓                          ↓
-FPS Controller (Ph3)        UI React R3F (Ph6)
-```
+- `inputs/mp_seatown/mp_seatown.ff` est en format **IW4x** (magic "IW4x", version 3). 
+  Le format de compression n'est pas standard MW3. À analyser en Phase 1.
+- `iw5-collision` est un squelette vide. La vraie implémentation commence en Phase 3.
 
 ## Décisions clés
 
-*   **Physique :** Rapier3D plutôt que collision custom sur clipMap_t
-*   **Navigation :** FPS controller WASD + souris avec Rapier3D
-*   **Fichiers locaux :** Uniquement File System Access API, zéro upload
-*   **Monorepo :** packages séparés (iw5-core, iw5-collision, viewer)
-*   **Fallback :** WASM wrapper OAT si parsing TS trop lent (Phase 2)
+- **Physique :** Rapier3D plutôt que collision custom sur clipMap_t
+- **Navigation :** FPS controller WASD + souris (Phase 0 basique, Phase 3 avec Rapier3D)
+- **Fichiers locaux :** Uniquement File System Access API, zéro upload
+- **Monorepo :** npm workspaces avec packages séparés
+- **Tests :** vitest pour iw5-core, à étendre
+- **Fallback :** WASM wrapper OAT si parsing TS trop lent (Phase 2)

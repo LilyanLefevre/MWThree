@@ -1,0 +1,28 @@
+{
+  "name": "@mwthree/iw5-collision",
+  "version": "0.1.0",
+  "description": "MW3 IW5 clipMap_t parser and Rapier3D collision builder",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.19.3",
+    "@mwthree/iw5-core": "*"
+  },
+  "license": "MIT"
+}

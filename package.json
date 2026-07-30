@@ -5,13 +5,15 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @mwthree/viewer",
-    "build": "npm run build -w @mwthree/iw5-core && npm run build -w @mwthree/iw5-collision && npm run build -w @mwthree/viewer",
-    "test": "npm run test -w @mwthree/iw5-core && npm run test -w @mwthree/iw5-collision",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "dev": "npm run dev -w packages/viewer",
+    "build": "npm run build -w packages/iw5-core && npm run build -w packages/iw5-collision && npm run build -w packages/viewer",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
   },
   "devDependencies": {
+    "@types/node": "^26.1.2",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.5"
+    "vitest": "^3.2.7"
   }
 }
