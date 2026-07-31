@@ -3,6 +3,7 @@ dist/
 .DS_Store
 *.log
 
-# Fichiers de jeu volumineux (non versionnés)
-inputs/**/*.ff
-inputs/**/*.iwd
+# Assets / fichiers de jeu - 17GB, non versionnés
+inputs/
+!inputs/README.md
+!inputs/**/*.arena

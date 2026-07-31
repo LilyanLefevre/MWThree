@@ -6,35 +6,48 @@ import FolderSelector from './components/FolderSelector'
 import { FPSCamera } from './components/FPSCamera'
 import type { MapInfo } from './types'
 
-function detectMW3Paths(folderHandle: FileSystemDirectoryHandle): Promise<MapInfo> {
-  return (async () => {
-    const foundFFs: string[] = []
-    const foundIWDs: string[] = []
-
-    try {
-      const zoneDir = await folderHandle.getDirectoryHandle('zone', { create: false })
-      for await (const entry of zoneDir.values()) {
-        if (entry.kind === 'file' && entry.name.startsWith('mp_') && entry.name.endsWith('.ff')) {
-          foundFFs.push(entry.name)
-        }
-      }
-    } catch {
-      console.warn('zone/ introuvable')
+async function scanDir(
+  dir: FileSystemDirectoryHandle,
+  predicate: (name: string) => boolean,
+): Promise<string[]> {
+  const results: string[] = []
+  for await (const entry of dir.values()) {
+    if (entry.kind === 'file' && predicate(entry.name)) {
+      results.push(entry.name)
     }
+  }
+  return results
+}
 
-    try {
-      const mainDir = await folderHandle.getDirectoryHandle('main', { create: false })
-      for await (const entry of mainDir.values()) {
-        if (entry.kind === 'file' && entry.name.endsWith('.iwd')) {
-          foundIWDs.push(entry.name)
-        }
-      }
-    } catch {
-      console.warn('main/ introuvable')
-    }
+async function detectMW3Paths(folderHandle: FileSystemDirectoryHandle): Promise<MapInfo> {
+  const foundFFs: string[] = []
+  const foundIWDs: string[] = []
 
-    return { maps: foundFFs, archives: foundIWDs, path: folderHandle.name }
-  })()
+  // 1) Chercher dans le dossier racine (cas : inputs/mp_seatown/)
+  const rootFFs = await scanDir(folderHandle, (n) => n.endsWith('.ff'))
+  const rootIWDs = await scanDir(folderHandle, (n) => n.endsWith('.iwd'))
+  foundFFs.push(...rootFFs)
+  foundIWDs.push(...rootIWDs)
+
+  // 2) Chercher dans zone/ (cas : installation MW3 standard)
+  try {
+    const zoneDir = await folderHandle.getDirectoryHandle('zone', { create: false })
+    const zoneFFs = await scanDir(zoneDir, (n) => n.endsWith('.ff'))
+    foundFFs.push(...zoneFFs)
+  } catch {
+    console.warn('zone/ introuvable')
+  }
+
+  // 3) Chercher dans main/ (cas : installation MW3 standard)
+  try {
+    const mainDir = await folderHandle.getDirectoryHandle('main', { create: false })
+    const mainIWDs = await scanDir(mainDir, (n) => n.endsWith('.iwd'))
+    foundIWDs.push(...mainIWDs)
+  } catch {
+    console.warn('main/ introuvable')
+  }
+
+  return { maps: [...new Set(foundFFs)], archives: [...new Set(foundIWDs)], path: folderHandle.name }
 }
 
 function App() {
