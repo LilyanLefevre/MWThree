@@ -4,7 +4,7 @@ import { Box } from '@react-three/drei'
 import { Physics } from '@react-three/rapier'
 import FolderSelector from './components/FolderSelector'
 import { FPSCamera } from './components/FPSCamera'
-import type { MapInfo } from './types'
+import type { MapInfo, LoadResult } from './types'
 
 async function scanDir(
   dir: FileSystemDirectoryHandle,
@@ -20,67 +20,185 @@ async function scanDir(
 }
 
 async function detectMW3Paths(folderHandle: FileSystemDirectoryHandle): Promise<MapInfo> {
-  const foundFFs: string[] = []
-  const foundIWDs: string[] = []
+  const foundFFs = new Set<string>()
+  const foundIWDs = new Set<string>()
 
-  // 1) Chercher dans le dossier racine (cas : inputs/mp_seatown/)
-  const rootFFs = await scanDir(folderHandle, (n) => n.endsWith('.ff'))
-  const rootIWDs = await scanDir(folderHandle, (n) => n.endsWith('.iwd'))
-  foundFFs.push(...rootFFs)
-  foundIWDs.push(...rootIWDs)
+  // Racine
+  for (const name of await scanDir(folderHandle, (n) => n.endsWith('.ff')))
+    foundFFs.add(name)
+  for (const name of await scanDir(folderHandle, (n) => n.endsWith('.iwd')))
+    foundIWDs.add(name)
 
-  // 2) Chercher dans zone/ (cas : installation MW3 standard)
+  // zone/ (ou zone/*/)
+  async function scanZone(path: FileSystemDirectoryHandle) {
+    for await (const entry of path.values()) {
+      if (entry.kind === 'file' && entry.name.endsWith('.ff')) {
+        foundFFs.add(entry.name)
+      }
+      if (entry.kind === 'directory') {
+        try {
+          const sub = await path.getDirectoryHandle(entry.name)
+          for (const name of await scanDir(sub, (n) => n.endsWith('.ff')))
+            foundFFs.add(name)
+        } catch { /* skip */ }
+      }
+    }
+  }
   try {
-    const zoneDir = await folderHandle.getDirectoryHandle('zone', { create: false })
-    const zoneFFs = await scanDir(zoneDir, (n) => n.endsWith('.ff'))
-    foundFFs.push(...zoneFFs)
-  } catch {
-    console.warn('zone/ introuvable')
+    await scanZone(await folderHandle.getDirectoryHandle('zone'))
+  } catch { /* no zone/ */ }
+
+  // main/
+  try {
+    const mainDir = await folderHandle.getDirectoryHandle('main')
+    for (const name of await scanDir(mainDir, (n) => n.endsWith('.iwd')))
+      foundIWDs.add(name)
+  } catch { /* no main/ */ }
+
+  return {
+    maps: [...foundFFs].sort(),
+    archives: [...foundIWDs].sort(),
+    path: folderHandle.name,
+  }
+}
+
+async function findAndLoadFF(
+  folderHandle: FileSystemDirectoryHandle,
+  fileName: string,
+): Promise<LoadResult> {
+  // Cherche le fichier dans : racine, zone/, zone/*/
+  async function findFile(dir: FileSystemDirectoryHandle): Promise<ArrayBuffer | null> {
+    try {
+      const fileHandle = await dir.getFileHandle(fileName)
+      const file = await fileHandle.getFile()
+      return file.arrayBuffer()
+    } catch { return null }
   }
 
-  // 3) Chercher dans main/ (cas : installation MW3 standard)
-  try {
-    const mainDir = await folderHandle.getDirectoryHandle('main', { create: false })
-    const mainIWDs = await scanDir(mainDir, (n) => n.endsWith('.iwd'))
-    foundIWDs.push(...mainIWDs)
-  } catch {
-    console.warn('main/ introuvable')
+  let buffer = await findFile(folderHandle)
+  if (!buffer) {
+    try {
+      const zoneDir = await folderHandle.getDirectoryHandle('zone')
+      buffer = await findFile(zoneDir)
+      if (!buffer) {
+        for await (const entry of zoneDir.values()) {
+          if (entry.kind === 'directory') {
+            const sub = await zoneDir.getDirectoryHandle(entry.name)
+            buffer = await findFile(sub)
+            if (buffer) break
+          }
+        }
+      }
+    } catch { /* not found */ }
   }
 
-  return { maps: [...new Set(foundFFs)], archives: [...new Set(foundIWDs)], path: folderHandle.name }
+  if (!buffer) {
+    return { fileName, compressedBytes: 0, decompressedBytes: 0, success: false, error: 'Fichier introuvable' }
+  }
+
+  try {
+    const { FastFileLoader } = await import('@mwthree/iw5-core')
+    const loader = new FastFileLoader(buffer)
+    const zone = loader.load()
+    return {
+      fileName,
+      compressedBytes: buffer.byteLength,
+      decompressedBytes: zone.byteLength,
+      success: true,
+    }
+  } catch (err: any) {
+    return {
+      fileName,
+      compressedBytes: buffer.byteLength,
+      decompressedBytes: 0,
+      success: false,
+      error: err.message,
+    }
+  }
 }
 
 function App() {
+  const [folderHandle, setFolderHandle] = useState<FileSystemDirectoryHandle | null>(null)
   const [mapInfo, setMapInfo] = useState<MapInfo | null>(null)
+  const [loading, setLoading] = useState<string | null>(null)
+  const [result, setResult] = useState<LoadResult | null>(null)
 
-  const handleFolderSelected = useCallback(async (folderHandle: FileSystemDirectoryHandle) => {
-    const info = await detectMW3Paths(folderHandle)
+  const handleFolderSelected = useCallback(async (fh: FileSystemDirectoryHandle) => {
+    setFolderHandle(fh)
+    setResult(null)
+    const info = await detectMW3Paths(fh)
     setMapInfo(info)
-    console.log('MW3 installation:', info)
   }, [])
+
+  const handleLoadMap = useCallback(async (name: string) => {
+    if (!folderHandle) return
+    setLoading(name)
+    setResult(null)
+    const r = await findAndLoadFF(folderHandle, name)
+    setResult(r)
+    setLoading(null)
+  }, [folderHandle])
 
   return (
     <>
       <FolderSelector onFolderSelected={handleFolderSelected} />
-      {mapInfo && (
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', pointerEvents: 'none' }}>
         <div style={{
+          pointerEvents: 'auto',
           position: 'absolute', top: 10, right: 10,
-          background: 'rgba(0,0,0,0.7)', color: 'white',
-          padding: 8, borderRadius: 5, zIndex: 100,
-          fontFamily: 'monospace', fontSize: 12
+          background: 'rgba(0,0,0,0.75)', color: 'white',
+          padding: 10, borderRadius: 5, zIndex: 100,
+          fontFamily: 'monospace', fontSize: 12,
+          maxHeight: '80vh', overflowY: 'auto', minWidth: 220,
         }}>
-          <div>Dossier: {mapInfo.path}</div>
-          <div>Maps trouvées: {mapInfo.maps.length}</div>
-          <div>Archives: {mapInfo.archives.length}</div>
+          {mapInfo && (
+            <>
+              <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{mapInfo.path}</div>
+              <div>Maps: {mapInfo.maps.length} &bull; Archives: {mapInfo.archives.length}</div>
+              <hr style={{ borderColor: '#555', margin: '6px 0' }} />
+              {mapInfo.maps.length === 0 && <div style={{ color: '#ff6' }}>Aucune map trouvée</div>}
+              {mapInfo.maps.map((m) => (
+                <div
+                  key={m}
+                  onClick={() => handleLoadMap(m)}
+                  style={{
+                    cursor: 'pointer', padding: '2px 4px',
+                    background: loading === m ? '#555' : 'transparent',
+                    borderRadius: 3,
+                  }}
+                >
+                  {m}
+                </div>
+              ))}
+            </>
+          )}
+          {result && (
+            <>
+              <hr style={{ borderColor: '#555', margin: '6px 0' }} />
+              {result.success ? (
+                <div style={{ color: '#6f6' }}>
+                  ✓ {result.fileName}<br />
+                  FF: {(result.compressedBytes / 1024 / 1024).toFixed(1)} MB →{' '}
+                  Zone: {(result.decompressedBytes / 1024 / 1024).toFixed(1)} MB
+                </div>
+              ) : (
+                <div style={{ color: '#f66' }}>
+                  ✗ {result.fileName}<br />
+                  {result.error}
+                </div>
+              )}
+            </>
+          )}
         </div>
-      )}
+      </div>
+
       <div style={{
         position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
         background: 'rgba(0,0,0,0.5)', color: 'white',
         padding: '4px 12px', borderRadius: 5, zIndex: 100,
-        fontFamily: 'monospace', fontSize: 11
+        fontFamily: 'monospace', fontSize: 11,
       }}>
-        Clique sur le canvas pour activer le mode FPS &bull; WASD + Souris + ESPACE
+        Clique sur le canvas pour le mode FPS &bull; WASD + Souris + ESPACE
       </div>
 
       <Canvas camera={{ position: [0, 3, 5], fov: 75 }}>
