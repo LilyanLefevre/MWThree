@@ -5,7 +5,7 @@
 | Phase                          | Statut      |
 | :----------------------------- | :---------- |
 | Phase 0 — Fondations projet    | ✓ COMPLETE  |
-| Phase 1 — Décompression FF     | EN COURS    |
+| Phase 1 — Décompression FF     | ✓ COMPLETE  |
 | Phase 2 — Zone loader          | ⏳ PENDING  |
 | Phase 3 — Collision + FPS      | ⏳ PENDING  |
 | Phase 4 — GfxWorld             | ⏳ PENDING  |
@@ -15,16 +15,18 @@
 ## Map de test
 
 ```
-inputs/mp_seatown/
-├── mp_seatown.ff        # Format IW4x (magic: IW4x, version 3)
-├── mp_seatown_load.ff   # FastFile de chargement
-├── mp_seatown.iwd       # Archive textures/sons
-└── mp_seatown.arena     # Configuration de map
+inputs/Call of Duty - Modern Warfare 3/zone/english/
+├── mp_seatown.ff          # Format IWff0100 (72MB) ✓ decompressible
+├── mp_seatown_load.ff     # FastFile de chargement IWff0100 ✓
+├── mp_bootleg.ff          # Format IWff0100 ✓
+├── code_pre_gfx.ff        # Format IWffu100 ✓
+├── code_pre_gfx_mp.ff     # Format IWff0100 ✓
+├── ... (80+ fichiers)
 ```
 
-**Note :** `mp_seatown.ff` est au format **IW4x** (pas IWff0100 standard MW3).
-Le support IW4x nécessite plus de RE → sera traité en Phase 1.
-Pour l'instant, les tests utilisent un fichier synthétique IWff0100.
+Les fichiers réels MW3 dans l'installation utilisateur (`inputs/Call of Duty - Modern Warfare 3/`) sont au format standard MW3 (`IWff0100` ou `IWffu100`) et se décompressent correctement maintenant.
+
+`inputs/mp_seatown/` contient des fichiers **IW4x** (mod tool) qui ne sont pas standard MW3 — à traiter plus tard.
 
 ## Structure du projet
 
@@ -40,7 +42,7 @@ mwthree/
 │   ├── iw5-core/                 # Parsers binaires ✓ builds + tests
 │   │   ├── src/
 │   │   │   ├── index.ts          # Exports publics
-│   │   │   ├── FastFileLoader.ts # Décompression FF (IWff0100 ok, IW4x partiel)
+│   │   │   ├── FastFileLoader.ts # Décompression FF (IWff0100 ✓, IWffu100 ✓, IW4x ⏳)
 │   │   │   └── FastFileLoader.test.ts
 │   │   ├── tsconfig.json
 │   │   ├── vitest.config.ts
@@ -74,7 +76,7 @@ mwthree/
 | Drei                      | Utilitaires Three.js               | @react-three/drei                 |
 | Rapier3D                  | Moteur physique                    | @dimforge/rapier3d-compat         |
 | @react-three/rapier       | Pont Rapier3D ↔ R3F               | @react-three/rapier               |
-| pako                      | Décompression zlib des FF          | iw5-core                          |
+| pako                      | Décompression zlib des FF (IWff0100, IWffu100) | iw5-core             |
 | vitest                    | Tests unitaires                    | root (devDep)                     |
 | fflate                    | Lecture .iwd (zip)                 | (à installer Phase 5)             |
 
@@ -100,10 +102,37 @@ npm run typecheck
 cd packages/viewer && npm run dev
 ```
 
+## Format FastFile MW3 (IW5) — Résumé
+
+### Structure `IWff0100` (Signed)
+```
+Offset 0:     IWff0100        (8 bytes magic)
+Offset 8:     version (uint32 LE)
+Offset 12:    9-byte prefix   (constant structure)
+Offset 21:    IWffs100        (auth header magic, 8 bytes)
+Offset 29:    00 00 00 00     (reserved, 4 bytes)
+Offset 33:    auth header data (total 0x4000 = 16384 bytes d'auth header)
+Offset 16405: zlib stream     (zone data compressée en single stream)
+```
+
+### Structure `IWffu100` (Unsigned)
+```
+Offset 0:     IWffu100        (8 bytes magic)
+Offset 8:     version (uint32 LE)
+Offset 12:    9-byte prefix   (constant structure)
+Offset 21:    zlib stream     (zone data compressée en single stream)
+```
+
+### Décompression
+- `IWff0100` : `pako.inflate(data[16405:])` → zone buffer
+- `IWffu100` : `pako.inflate(data[21:])` → zone buffer
+
 ## Problèmes ouverts
 
 - `inputs/mp_seatown/mp_seatown.ff` est en format **IW4x** (magic "IW4x", version 3). 
-  Le format de compression n'est pas standard MW3. À analyser en Phase 1.
+  À traiter séparément.
+- Le zone buffer décompressé est au format XFile (avec block sizes etc.) — c'est le travail de Phase 2.
+- Les gros fichiers (72MB+) peuvent prendre plusieurs secondes à décompresser. Option Web Worker à envisager.
 - `iw5-collision` est un squelette vide. La vraie implémentation commence en Phase 3.
 
 ## Décisions clés
