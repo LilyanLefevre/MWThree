@@ -164,13 +164,30 @@ function App() {
         fontFamily: 'monospace', fontSize: 12,
         maxHeight: '80vh', overflowY: 'auto', minWidth: 220,
       }}>
+        {result && (
+          <>
+            {result.success ? (
+              <div style={{ color: '#6f6' }}>
+                ✓ {result.fileName}<br />
+                FF: {(result.compressedBytes / 1024 / 1024).toFixed(1)} MB →{' '}
+                Zone: {(result.decompressedBytes / 1024 / 1024).toFixed(1)} MB
+              </div>
+            ) : (
+              <div style={{ color: '#f66' }}>
+                ✗ {result.fileName}<br />
+                {result.error}
+              </div>
+            )}
+            <hr style={{ borderColor: '#555', margin: '6px 0' }} />
+          </>
+        )}
+        {loading && <div style={{ color: '#88f' }}>Chargement de {loading}...</div>}
         {mapInfo && (
           <>
             <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{mapInfo.path}</div>
             <div>Maps: {mapInfo.maps.length} &bull; Archives: {mapInfo.archives.length}</div>
             <hr style={{ borderColor: '#555', margin: '6px 0' }} />
             {mapInfo.maps.length === 0 && <div style={{ color: '#ff6' }}>Aucune map trouvée</div>}
-            {loading && <div style={{ color: '#88f' }}>Chargement de {loading}...</div>}
             {mapInfo.maps.map((m) => (
               <div
                 key={m}
@@ -184,23 +201,6 @@ function App() {
                 {m}
               </div>
             ))}
-          </>
-        )}
-        {result && (
-          <>
-            <hr style={{ borderColor: '#555', margin: '6px 0' }} />
-            {result.success ? (
-              <div style={{ color: '#6f6' }}>
-                ✓ {result.fileName}<br />
-                FF: {(result.compressedBytes / 1024 / 1024).toFixed(1)} MB →{' '}
-                Zone: {(result.decompressedBytes / 1024 / 1024).toFixed(1)} MB
-              </div>
-            ) : (
-              <div style={{ color: '#f66' }}>
-                ✗ {result.fileName}<br />
-                {result.error}
-              </div>
-            )}
           </>
         )}
       </div>
