@@ -10,9 +10,10 @@ export interface FastFileHeader {
 
 const HEADER_SIZE = 12
 const PREFIX_SIZE = 9
-const AUTH_HEADER_SIZE = 0x4000
-const ZONE_OFFSET_UNSIGNED = HEADER_SIZE + PREFIX_SIZE
-const ZONE_OFFSET_SIGNED = HEADER_SIZE + PREFIX_SIZE + AUTH_HEADER_SIZE
+const AUTH_OFFSET = HEADER_SIZE + PREFIX_SIZE // 21
+const AUTH_HEADER_SIZE = 0x4000 // 16384
+const CHUNK_SIZE = 0x2000 // 8192
+const DATA_CHUNKS_PER_GROUP = 256
 
 function bytesToArrayBuffer(data: Uint8Array): ArrayBuffer {
   const ab = new ArrayBuffer(data.length)
@@ -22,12 +23,10 @@ function bytesToArrayBuffer(data: Uint8Array): ArrayBuffer {
 
 export class FastFileLoader {
   private buffer: ArrayBuffer
-  private view: DataView
   private textDecoder: TextDecoder
 
   constructor(buffer: ArrayBuffer) {
     this.buffer = buffer
-    this.view = new DataView(buffer)
     this.textDecoder = new TextDecoder('ascii')
   }
 
@@ -36,65 +35,87 @@ export class FastFileLoader {
     return this.textDecoder.decode(bytes)
   }
 
-  private readHex(offset: number, length: number): string {
-    const clamped = Math.min(length, Math.max(0, this.buffer.byteLength - offset))
-    const bytes = new Uint8Array(this.buffer, offset, clamped)
-    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ')
-  }
-
   private detectMagic(raw: string): FastFileMagic {
-    const trimmed = raw.replace(/[^\x20-\x7E]/g, '')
     for (const m of SUPPORTED_MAGICS) {
-      if (m.startsWith(trimmed)) return m
+      if (raw.startsWith(m)) return m
     }
     throw new Error(
-      `FastFile magic non reconnu. Reçu "${raw}". Supportés : ${SUPPORTED_MAGICS.join(', ')}`
+      `Unknown FastFile magic "${raw}". Supported: ${SUPPORTED_MAGICS.join(', ')}`
     )
   }
 
-  private readHeader(): FastFileHeader {
-    if (this.buffer.byteLength < 12) {
-      throw new Error(`FastFile trop petit : ${this.buffer.byteLength} bytes, minimum 12 requis`)
-    }
-
-    const magicRaw = this.readString(0, 8)
-    const magic = this.detectMagic(magicRaw)
-    const version = this.view.getUint32(8, true)
-
-    const zoneOffset = magic === 'IWff0100' ? ZONE_OFFSET_SIGNED : ZONE_OFFSET_UNSIGNED
-
-    console.log(`Header: magic="${magic}" version=${version} fileSize=${this.buffer.byteLength}`)
-    console.log(`Hex debut: ${this.readHex(0, 32)}`)
-    console.log(`Zone offset: ${zoneOffset} (0x${zoneOffset.toString(16)})`)
-
-    return { magic, version }
+  private get magic(): FastFileMagic {
+    return this.detectMagic(this.readString(0, 8))
   }
 
   load(): ArrayBuffer {
-    console.log(`\nChargement: ${this.buffer.byteLength} bytes`)
-    const header = this.readHeader()
+    if (this.buffer.byteLength < 12) {
+      throw new Error(`FastFile too small: ${this.buffer.byteLength} bytes, need at least 12`)
+    }
 
-    const zoneOffset = header.magic === 'IWff0100' ? ZONE_OFFSET_SIGNED : ZONE_OFFSET_UNSIGNED
+    const mag = this.magic
 
-    if (this.buffer.byteLength < zoneOffset) {
+    if (mag === 'IWff0100') {
+      return this.loadSigned()
+    }
+
+    return this.loadUnsigned()
+  }
+
+  private loadUnsigned(): ArrayBuffer {
+    if (this.buffer.byteLength < AUTH_OFFSET) {
       throw new Error(
-        `Fichier trop petit pour ${header.magic}: ${this.buffer.byteLength} bytes, ` +
-        `besoin d'au moins ${zoneOffset}`
+        `Unsigned FF too small: ${this.buffer.byteLength} bytes, need at least ${AUTH_OFFSET}`
       )
     }
 
-    const compressed = new Uint8Array(this.buffer, zoneOffset)
-    console.log(`Donnees compressees: ${compressed.length} bytes`)
-    console.log(`Hex debut compression: ${this.readHex(zoneOffset, 16)}`)
+    const compressed = new Uint8Array(this.buffer, AUTH_OFFSET)
 
     try {
-      const decompressed = pako.inflate(compressed)
-      console.log(`✓ Decompression reussie: ${compressed.length} → ${decompressed.length} bytes`)
-      return bytesToArrayBuffer(decompressed)
+      const r = pako.inflate(compressed)
+      return bytesToArrayBuffer(r)
     } catch (e) {
+      throw new Error(`Decompression failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  private loadSigned(): ArrayBuffer {
+    if (this.buffer.byteLength < AUTH_OFFSET + AUTH_HEADER_SIZE) {
       throw new Error(
-        `Echec decompression ${header.magic} v${header.version}: ${e}`
+        `Signed FF too small: ${this.buffer.byteLength} bytes, need at least ${AUTH_OFFSET + AUTH_HEADER_SIZE}`
       )
+    }
+
+    const data = new Uint8Array(this.buffer)
+    const dataChunks: Uint8Array[] = []
+    let offset = AUTH_OFFSET + AUTH_HEADER_SIZE // 16405
+
+    while (offset < data.length) {
+      for (let i = 0; i < DATA_CHUNKS_PER_GROUP && offset < data.length; i++) {
+        const end = Math.min(offset + CHUNK_SIZE, data.length)
+        dataChunks.push(data.subarray(offset, end))
+        offset = end
+      }
+
+      offset += CHUNK_SIZE
+    }
+
+    if (dataChunks.length === 0) {
+      throw new Error('No data chunks found in signed FF')
+    }
+
+    const concat = new Uint8Array(dataChunks.reduce((sum, c) => sum + c.length, 0))
+    let pos = 0
+    for (const c of dataChunks) {
+      concat.set(c, pos)
+      pos += c.length
+    }
+
+    try {
+      const r = pako.inflate(concat)
+      return bytesToArrayBuffer(r)
+    } catch (e) {
+      throw new Error(`Decompression failed: ${e instanceof Error ? e.message : e}`)
     }
   }
 }
