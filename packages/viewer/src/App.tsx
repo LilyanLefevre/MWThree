@@ -66,7 +66,6 @@ async function findAndLoadFF(
   folderHandle: FileSystemDirectoryHandle,
   fileName: string,
 ): Promise<LoadResult> {
-  // Cherche le fichier dans : racine, zone/, zone/*/
   async function findFile(dir: FileSystemDirectoryHandle): Promise<ArrayBuffer | null> {
     try {
       const fileHandle = await dir.getFileHandle(fileName)
@@ -97,14 +96,41 @@ async function findAndLoadFF(
   }
 
   try {
-    const { FastFileLoader } = await import('@mwthree/iw5-core')
+    const { FastFileLoader, ZoneParser, SUPPORTED_ASSET_TYPES } = await import('@mwthree/iw5-core')
     const loader = new FastFileLoader(buffer)
     const zone = loader.load()
+
+    const parser = new ZoneParser(zone)
+    const info = parser.parse()
+    const zoneName = parser.findZoneName()
+
+    const assetCounts = new Map<number, number>()
+    for (const a of info.assets) {
+      if (!a.isNull) {
+        assetCounts.set(a.type, (assetCounts.get(a.type) ?? 0) + 1)
+      }
+    }
+    const assets = [...assetCounts.entries()]
+      .map(([type, count]) => ({
+        type,
+        typeName: SUPPORTED_ASSET_TYPES[type] ?? `UNKNOWN_${type}`,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count)
+
     return {
       fileName,
       compressedBytes: buffer.byteLength,
       decompressedBytes: zone.byteLength,
       success: true,
+      zoneName,
+      xfileSize: info.header.size,
+      blocks: Object.entries(info.header.blocks)
+        .filter(([, s]) => s > 0)
+        .map(([name, size]) => ({ name, size })),
+      stringCount: info.stringCount,
+      assetCount: info.assetCount,
+      assets,
     }
   } catch (err: any) {
     return {
@@ -168,14 +194,40 @@ function App() {
           <>
             {result.success ? (
               <div style={{ color: '#6f6' }}>
-                ✓ {result.fileName}<br />
-                FF: {(result.compressedBytes / 1024 / 1024).toFixed(1)} MB →{' '}
-                Zone: {(result.decompressedBytes / 1024 / 1024).toFixed(1)} MB
+                ✓ {result.fileName}
               </div>
             ) : (
               <div style={{ color: '#f66' }}>
                 ✗ {result.fileName}<br />
                 {result.error}
+              </div>
+            )}
+            <div style={{ fontSize: 11, marginTop: 4 }}>
+              FF: {(result.compressedBytes / 1024 / 1024).toFixed(1)} MB → Zone: {(result.decompressedBytes / 1024 / 1024).toFixed(1)} MB
+            </div>
+            {result.zoneName && (
+              <div style={{ fontSize: 11, color: '#ff6' }}>Zone: {result.zoneName}</div>
+            )}
+            {result.blocks && result.blocks.length > 0 && (
+              <div style={{ fontSize: 10, marginTop: 4 }}>
+                <div style={{ color: '#8af', fontWeight: 'bold' }}>XFile blocks</div>
+                {result.blocks.map((b) => (
+                  <div key={b.name}>
+                    {b.name}: {(b.size / 1024 / 1024).toFixed(1)} MB
+                  </div>
+                ))}
+              </div>
+            )}
+            {result.assets && result.assets.length > 0 && (
+              <div style={{ fontSize: 10, marginTop: 4 }}>
+                <div style={{ color: '#8af', fontWeight: 'bold' }}>
+                  Assets: {result.assetCount} ({result.stringCount} strings)
+                </div>
+                {result.assets.map((a) => (
+                  <div key={a.type}>
+                    [{a.type}] {a.typeName}: {a.count}
+                  </div>
+                ))}
               </div>
             )}
             <hr style={{ borderColor: '#555', margin: '6px 0' }} />
