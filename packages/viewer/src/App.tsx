@@ -106,8 +106,8 @@ async function findAndLoadFF(
 
     const assetCounts = new Map<number, number>()
     for (const a of info.assets) {
-      if (!a.isNull) {
-        assetCounts.set(a.type, (assetCounts.get(a.type) ?? 0) + 1)
+      if (a.isFollowing) {
+        assetCounts.set(a.rawType, (assetCounts.get(a.rawType) ?? 0) + 1)
       }
     }
     const assets = [...assetCounts.entries()]
