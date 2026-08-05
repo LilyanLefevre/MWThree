@@ -49,41 +49,46 @@ export class FastFileLoader {
   }
 
   load(): ArrayBuffer {
-    if (this.buffer.byteLength < 12) {
-      throw new Error(`FastFile too small: ${this.buffer.byteLength} bytes, need at least 12`)
-    }
-
-    const mag = this.magic
-
-    if (mag === 'IWff0100') {
-      return this.loadSigned()
-    }
-
-    return this.loadUnsigned()
-  }
-
-  private loadUnsigned(): ArrayBuffer {
-    if (this.buffer.byteLength < AUTH_OFFSET) {
-      throw new Error(
-        `Unsigned FF too small: ${this.buffer.byteLength} bytes, need at least ${AUTH_OFFSET}`
-      )
-    }
-
-    const compressed = new Uint8Array(this.buffer, AUTH_OFFSET)
-
+    const compressed = this.compressedStream()
     try {
-      const r = pako.inflate(compressed)
-      return bytesToArrayBuffer(r)
+      return bytesToArrayBuffer(pako.inflate(compressed))
     } catch (e) {
       throw new Error(`Decompression failed: ${e instanceof Error ? e.message : e}`)
     }
   }
 
-  private loadSigned(): ArrayBuffer {
+  /** Same as load(), but uses the platform's native zlib (DecompressionStream) when available: much faster in browsers. */
+  async loadAsync(): Promise<ArrayBuffer> {
+    const compressed = this.compressedStream()
+    if (typeof DecompressionStream !== 'undefined') {
+      try {
+        const stream = new Blob([compressed as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate'))
+        return await new Response(stream).arrayBuffer()
+      } catch {
+        // e.g. trailing bytes after the zlib stream: fall back to pako
+      }
+    }
+    return this.load()
+  }
+
+  /** The concatenated zlib stream, with FastFile headers and signature chunks removed. */
+  private compressedStream(): Uint8Array {
+    if (this.buffer.byteLength < 12) {
+      throw new Error(`FastFile too small: ${this.buffer.byteLength} bytes, need at least 12`)
+    }
+    return this.magic === 'IWff0100' ? this.signedStream() : this.unsignedStream()
+  }
+
+  private unsignedStream(): Uint8Array {
+    if (this.buffer.byteLength < AUTH_OFFSET) {
+      throw new Error(`Unsigned FF too small: ${this.buffer.byteLength} bytes, need at least ${AUTH_OFFSET}`)
+    }
+    return new Uint8Array(this.buffer, AUTH_OFFSET)
+  }
+
+  private signedStream(): Uint8Array {
     if (this.buffer.byteLength < AUTH_OFFSET + AUTH_HEADER_SIZE) {
-      throw new Error(
-        `Signed FF too small: ${this.buffer.byteLength} bytes, need at least ${AUTH_OFFSET + AUTH_HEADER_SIZE}`
-      )
+      throw new Error(`Signed FF too small: ${this.buffer.byteLength} bytes, need at least ${AUTH_OFFSET + AUTH_HEADER_SIZE}`)
     }
 
     const data = new Uint8Array(this.buffer)
@@ -96,8 +101,7 @@ export class FastFileLoader {
         dataChunks.push(data.subarray(offset, end))
         offset = end
       }
-
-      offset += CHUNK_SIZE
+      offset += CHUNK_SIZE // skip the hash chunk that follows each group
     }
 
     if (dataChunks.length === 0) {
@@ -110,12 +114,6 @@ export class FastFileLoader {
       concat.set(c, pos)
       pos += c.length
     }
-
-    try {
-      const r = pako.inflate(concat)
-      return bytesToArrayBuffer(r)
-    } catch (e) {
-      throw new Error(`Decompression failed: ${e instanceof Error ? e.message : e}`)
-    }
+    return concat
   }
 }
