@@ -7,3 +7,8 @@ dist/
 inputs/
 !inputs/README.md
 !inputs/**/*.arena
+
+# Fichiers locaux d'outils IA (non partagés)
+.opencode/
+.playwright-cli/
+.claude/settings.local.json
