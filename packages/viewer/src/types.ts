@@ -28,3 +28,16 @@ export interface LoadResult {
   stringCount?: number
   assets?: ZoneAssetSummary[]
 }
+
+import type { SpawnPoint, MapStats } from './worker/protocol'
+
+/** A loaded map, ready to render (meters, Y-up). */
+export interface MapWorld {
+  fileName: string
+  positions: Float32Array
+  normals: Float32Array
+  colors: Float32Array
+  indices: Uint32Array
+  spawns: SpawnPoint[]
+  stats: MapStats
+}
