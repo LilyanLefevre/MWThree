@@ -42,11 +42,11 @@ mwthree/
 npm run dev
 ```
 
-Ouvre un navigateur sur `http://localhost:5173` avec :
-- Scene 3D de test (boîte + sol)
-- Contrôles FPS : clic sur le canvas → WASD + souris + ESPACE
-- Bouton **"Select MW3 Game Folder"** pour charger une installation MW3
-- HUD affichant les maps et archives détectées
+Ouvre `http://localhost:5173` :
+- Bouton **"Select MW3 Game Folder"** : choisir l'installation MW3 (ou un dossier contenant `zone/<map>/mp_<map>.ff`), puis cliquer une map
+- La géométrie de la map est chargée dans un Web Worker (≈ 20–30 s) puis explorable : clic = capture souris, WASD/ZQSD, Espace, Maj, **V = vol libre**
+- Dev : `http://localhost:5173/?dev=dome` charge directement `inputs/zone/dome/mp_dome.ff`
+- Voir `docs/SESSION_REFERENCE.md` pour l'état détaillé
 
 ### Build complet (tous les packages)
 
