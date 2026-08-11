@@ -76,6 +76,7 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [world, setWorld] = useState<MapWorld | null>(null)
   const [fly, setFly] = useState(false)
+  const [showCollision, setShowCollision] = useState(false)
   const worker = useRef<Worker | null>(null)
 
   const runWorker = useCallback((buffer: ArrayBuffer, fileName: string) => {
@@ -115,6 +116,12 @@ function App() {
     fetch(`/__inputs/zone/${dev}/${name}`).then(r => r.arrayBuffer()).then(b => runWorker(b, name)).catch(e => setError(String(e)))
   }, [runWorker])
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.code === 'KeyC' && !e.repeat) setShowCollision(v => !v) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
   const spawn = useMemo(() => (world ? pickSpawn(world) : null), [world])
   const isLoading = loading !== null
 
@@ -127,7 +134,7 @@ function App() {
         <directionalLight position={[300, 500, 200]} intensity={1.4} />
         {world && spawn && (
           <Physics gravity={[0, -20, 0]}>
-            <WorldMesh world={world} />
+            <WorldMesh world={world} showCollision={showCollision} />
             <Player spawn={spawn.pos} yaw={spawn.yaw} onFly={setFly} />
           </Physics>
         )}
@@ -149,6 +156,7 @@ function App() {
             <div style={{ color: '#aaa' }}>
               décompression {world.stats.msDecompress} ms · lecture {world.stats.msParse} ms
             </div>
+            <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes (C = afficher)` : 'collision : mesh visible'}</div>
             <div style={{ color: '#ff6' }}>{fly ? 'Mode vol (V pour revenir)' : 'Marche (V = vol libre)'}</div>
           </div>
         )}
@@ -171,7 +179,7 @@ function App() {
         position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white',
         padding: '4px 12px', borderRadius: 5, zIndex: 100, fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
       }}>
-        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · V = vol libre (Espace/Ctrl = haut/bas)
+        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · V = vol libre · C = collision
       </div>
     </div>
   )

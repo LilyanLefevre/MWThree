@@ -29,7 +29,7 @@ export interface LoadResult {
   assets?: ZoneAssetSummary[]
 }
 
-import type { SpawnPoint, MapStats } from './worker/protocol'
+import type { SpawnPoint, MapStats, CollisionData } from './worker/protocol'
 
 /** A loaded map, ready to render (meters, Y-up). */
 export interface MapWorld {
@@ -38,6 +38,8 @@ export interface MapWorld {
   normals: Float32Array
   colors: Float32Array
   indices: Uint32Array
+  /** null when the zone has no clipMap: the visible mesh is used for physics */
+  collision: CollisionData | null
   spawns: SpawnPoint[]
   stats: MapStats
 }

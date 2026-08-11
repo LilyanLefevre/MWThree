@@ -18,6 +18,9 @@ export interface MapStats {
   msTotal: number
 }
 
+/** Physics geometry built from clipMap_t brushes and terrain triangles. */
+export interface CollisionData { positions: Float32Array; indices: Uint32Array; brushes: number }
+
 export type MapResponse =
   | { type: 'progress'; stage: string }
   | { type: 'error'; message: string }
@@ -28,6 +31,7 @@ export type MapResponse =
       normals: Float32Array
       colors: Float32Array
       indices: Uint32Array
+      collision: CollisionData | null
       spawns: SpawnPoint[]
       stats: MapStats
     }
