@@ -625,7 +625,7 @@ export class ZoneLoader {
       const base = scopes.map(s => ({ ...s, prefix: null as string | null }))
       if (!hasPtr(typeName) && !flex) {
         const bytes = this.readBytes(n * sd.size).slice()
-        const v = n >= 32 ? new PlainArray(typeName, n, bytes, this) : Array.from({ length: n }, (_, i) => this.decodeStruct(typeName, bytes, i * sd.size))
+        const v = new PlainArray(typeName, n, bytes, this)
         reg(addr, v, n * sd.size, sd.size)
         return v
       }

@@ -18,7 +18,21 @@ flowchart LR
 
 Chaque **surface** référence une plage de sommets (`firstVertex`, `vertexCount`) et une plage d'indices (`baseIndex`, `triCount`) ; les indices sont relatifs à `firstVertex`. Un sommet (`GfxWorldVertex`, 44 octets) contient position, couleur, coordonnées de texture, coordonnées de lightmap, normale et tangente packées sur 4 octets chacune.
 
-Aujourd'hui les surfaces sont colorées par un hash du nom de matériau (pas de textures). Les modèles statiques (props) ne sont pas encore instanciés.
+Aujourd'hui les surfaces sont colorées par un hash du nom de matériau (pas de textures).
+
+### Modèles statiques (props)
+
+```mermaid
+flowchart LR
+    I[dpvs.smodelDrawInsts<br/>4 350 placements] -->|model| X[XModel<br/>177 distincts]
+    X -->|lodInfo 0| S[XModelSurfs → XSurface]
+    S --> G[verts0 32 o + triIndices<br/>géométrie en mètres]
+    I -->|origin, axis, scale| M[matrice d'instance<br/>repère scène]
+    G --> IM[InstancedMesh par modèle]
+    M --> IM
+```
+
+Chaque placement donne une origine, une base orthonormée (`axis`, 3×3) et une échelle ; ils deviennent la matrice d'instance de l'`InstancedMesh` du modèle (≈ 800 000 triangles dessinés pour 108 000 triangles uniques sur `mp_dome`). Seul le LOD 0 est utilisé.
 
 ## Repères et sens des triangles
 
