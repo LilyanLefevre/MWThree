@@ -19,10 +19,12 @@ Reconstruit un Call of Duty MW3 (2011) jouable dans le navigateur en parsant les
 ```
 mwthree/
 ├── docs/                    # Documentation et plan
+│   ├── README.md            # Index + schémas (fichiers, lecture de zone, rendu)
 │   ├── PLAN.md              # Plan complet du projet
-│   └── SESSION_REFERENCE.md # Référence pour les sessions de dev
+│   ├── RE_NOTES.md          # Format des zones (faits vérifiés)
+│   └── SESSION_REFERENCE.md # État et commandes
 ├── inputs/                  # Fichiers de test
-│   └── mp_seatown/          # Map de test (format IW4x)
+│   └── zone/dome/mp_dome.ff # Map de test (non versionnée)
 ├── packages/
 │   ├── iw5-core/            # Parsers binaires (FastFile, zone, assets)
 │   ├── iw5-collision/       # ClipMap → Colliders Rapier3D
@@ -115,24 +117,22 @@ npm run build
 npm run dev
 
 # 5. Sélectionner un dossier MW3 via l'interface
-#    (ou utiliser inputs/mp_seatown/ pour les tests)
+#    (ou ouvrir http://localhost:5173/?dev=dome pour charger inputs/zone/dome/mp_dome.ff)
 ```
 
 ---
 
 ## Fichiers de test
 
-Le dossier `inputs/mp_seatown/` contient une map de test :
+La map d'exemple est **`mp_dome`** (Dome), à placer dans `inputs/` (non versionné) :
 
-| Fichier | Taille | Format | Usage |
-| :------ | :----- | :----- | :---- |
-| `mp_seatown.ff` | 25 MB | IW4x | FastFile principal |
-| `mp_seatown_load.ff` | 792 B | IW4x | FastFile de chargement |
-| `mp_seatown.iwd` | 70 MB | ZIP | Textures et sons |
-| `mp_seatown.arena` | 258 B | texte | Configuration de map |
+| Fichier | Taille | Usage |
+| :------ | :----- | :---- |
+| `inputs/zone/dome/mp_dome.ff` | ≈ 60 Mo | FastFile de la map (format retail `IWff0100`) |
+| `inputs/zone/dome/mp_dome_load.ff` | 24 Ko | écran de chargement (non utilisé) |
 
-Ces fichiers proviennent d'une installation MW3 locale. Le format est **IW4x**
-(magic `IW4x`, version 3), une variante du format standard MW3 (`IWff0100`).
+Ces fichiers proviennent de ta propre installation MW3 (`zone/<langue>/`). Les 16 maps `mp_*` testées
+se lisent à l'octet près ; `mp_dome` est celle utilisée pour les tests d'intégration et `/?dev=dome`.
 
 ---
 
@@ -140,13 +140,15 @@ Ces fichiers proviennent d'une installation MW3 locale. Le format est **IW4x**
 
 | Phase | Statut |
 | :---- | :----- |
-| 0 — Fondations (monorepo, scene 3D, FPS, dossier selector) | ✅ Terminé |
-| 1 — Décompression FastFile | 🔄 En cours |
-| 2 — Zone loader et résolution de pointeurs | ⏳ À faire |
-| 3 — Collision et déplacement FPS (Rapier3D) | ⏳ À faire |
-| 4 — Géométrie visuelle (GfxWorld, XModel) | ⏳ À faire |
-| 5 — Textures et IWD | ⏳ À faire |
-| 6 — Entités et UX explorateur | ⏳ À faire |
+| 0 — Fondations (monorepo, scène 3D, FPS, sélecteur de dossier) | ✅ |
+| 1 — Décompression FastFile | ✅ |
+| 2 — Zone loader et résolution de pointeurs | ✅ |
+| 3 — Collision et déplacement FPS (Rapier3D) | ✅ |
+| 4 — Géométrie visuelle (GfxWorld ✅, modèles statiques ⏳) | 🔄 |
+| 5 — Textures et IWD | ⏳ |
+| 6 — Entités et UX explorateur | 🔄 |
+
+Détails : [`docs/`](docs/README.md).
 
 ---
 
