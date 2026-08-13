@@ -1,4 +1,4 @@
-import type { StaticModelBatch, MaterialGroup } from '@mwthree/iw5-core'
+import type { StaticModelBatch, MaterialGroup, Lightmap } from '@mwthree/iw5-core'
 
 /** Where to read the .iwd archives from: local files (folder picker) or URLs (dev server, HTTP Range). */
 export type IwdSource = { file: File } | { url: string }
@@ -43,6 +43,8 @@ export type MapResponse =
       positions: Float32Array
       normals: Float32Array
       uvs: Float32Array
+      lmUvs: Float32Array
+      lightmaps: Lightmap[]
       colors: Float32Array
       indices: Uint32Array
       groups: MaterialGroup[]

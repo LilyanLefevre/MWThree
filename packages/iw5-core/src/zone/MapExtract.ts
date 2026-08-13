@@ -34,13 +34,21 @@ export function parseVec3(s: string | undefined): [number, number, number] | nul
   return p.length >= 3 && p.every(Number.isFinite) ? [p[0], p[1], p[2]] : null
 }
 
-export interface MaterialGroup { material: string; start: number; count: number }
+export interface MaterialGroup {
+  material: string
+  start: number
+  count: number
+  /** index into the lightmap list, or -1 for unlit-by-lightmap surfaces */
+  lightmap?: number
+}
 
 export interface WorldMesh {
   /** meters, Y-up (x, z, -y of the game's Z-up) */
   positions: Float32Array
   normals: Float32Array
   uvs: Float32Array
+  /** lightmap atlas coordinates */
+  lmUvs: Float32Array
   /** per-vertex debug color derived from the material name */
   colors: Float32Array
   indices: Uint32Array
@@ -94,15 +102,18 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
   const normals = new Float32Array(vcount * 3)
   const uvs = new Float32Array(vcount * 2)
   const colors = new Float32Array(vcount * 3).fill(0.6)
+  const lmUvs = new Float32Array(vcount * 2)
+  const lmCount = (gfx.draw.lightmaps as any[] | undefined)?.length ?? 0
   for (let i = 0; i < vcount; i++) {
     const o = i * stride
     const x = dv.getFloat32(o, true), y = dv.getFloat32(o + 4, true), z = dv.getFloat32(o + 8, true)
     positions[i * 3] = x * UNIT_SCALE; positions[i * 3 + 1] = z * UNIT_SCALE; positions[i * 3 + 2] = -y * UNIT_SCALE
     uvs[i * 2] = dv.getFloat32(o + 20, true); uvs[i * 2 + 1] = dv.getFloat32(o + 24, true)
+    lmUvs[i * 2] = dv.getFloat32(o + 28, true); lmUvs[i * 2 + 1] = dv.getFloat32(o + 32, true)
     const n = unpackUnitVec(dv.getUint32(o + 36, true))
     normals[i * 3] = n[0]; normals[i * 3 + 1] = n[2]; normals[i * 3 + 2] = -n[1]
   }
-  const byMaterial = new Map<string, number[]>()
+  const byMaterial = new Map<string, { material: string; lightmap: number; idx: number[] }>()
   const drawn: WorldMesh['surfaces'] = []
   let skipped = 0
   for (const s of surfaces) {
@@ -111,8 +122,12 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
     const { firstVertex, triCount, baseIndex, vertexCount } = s.tris
     const [cr, cg, cb] = materialColor(name)
     for (let v = firstVertex; v < firstVertex + vertexCount && v < vcount; v++) { colors[v * 3] = cr; colors[v * 3 + 1] = cg; colors[v * 3 + 2] = cb }
-    let idx = byMaterial.get(name)
-    if (!idx) byMaterial.set(name, idx = [])
+    const lmi = s.laf?.fields?.lightmapIndex ?? 255
+    const lightmap = lmi < lmCount ? lmi : -1
+    const key = `${name}|${lightmap}`
+    let entry = byMaterial.get(key)
+    if (!entry) byMaterial.set(key, entry = { material: name, lightmap, idx: [] })
+    const idx = entry.idx
     // game triangles are clockwise; swap two vertices so front faces are counter-clockwise (three.js)
     for (let k = 0; k < triCount * 3; k += 3) {
       idx.push(firstVertex + srcIdx[baseIndex + k], firstVertex + srcIdx[baseIndex + k + 2], firstVertex + srcIdx[baseIndex + k + 1])
@@ -121,11 +136,11 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
   }
   const groups: MaterialGroup[] = []
   const all: number[] = []
-  for (const [material, list] of byMaterial) {
-    groups.push({ material, start: all.length, count: list.length })
+  for (const { material, lightmap, idx: list } of byMaterial.values()) {
+    groups.push({ material, lightmap, start: all.length, count: list.length })
     for (let i = 0; i < list.length; i++) all.push(list[i])
   }
-  return { positions, normals, uvs, colors, indices: Uint32Array.from(all), surfaces: drawn, groups, skippedSurfaces: skipped }
+  return { positions, normals, uvs, lmUvs, colors, indices: Uint32Array.from(all), surfaces: drawn, groups, skippedSurfaces: skipped }
 }
 
 export interface MapSummary {
@@ -257,6 +272,44 @@ export function extractMaterialImages(zone: LoadedZone): Record<string, string |
     if (!model || seen.has(model)) continue
     seen.add(model)
     for (const h of model.materialHandles ?? []) add(h)
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- lightmaps
+
+export interface Lightmap { width: number; height: number; rgba: Uint8Array }
+
+/**
+ * Combine each lightmap pair into one RGBA image.
+ * primary (L8) holds the sun-shadow mask, secondary (A8R8G8B8, half width) the sky/bounce color.
+ * The exact engine formula is not reproduced: this is a calibrated approximation.
+ */
+export function extractLightmaps(zone: LoadedZone): Lightmap[] {
+  const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
+  const out: Lightmap[] = []
+  const bytesOf = (img: any): Uint8Array | null => {
+    const d = img?.texture?.loadDef?.data
+    return d ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : null
+  }
+  for (const lm of gfx?.draw?.lightmaps ?? []) {
+    const prim = resolveVal(zone, lm.primary), sec = resolveVal(zone, lm.secondary)
+    const pd = bytesOf(prim), sd = bytesOf(sec)
+    if (!pd || !sd) { out.push({ width: 1, height: 1, rgba: new Uint8Array([255, 255, 255, 255]) }); continue }
+    const w = prim.width, h = prim.height, sw = sec.width, sh = sec.height
+    const rgba = new Uint8Array(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const sun = pd[y * w + x] / 255
+        const so = ((Math.min(sh - 1, (y * sh / h) | 0)) * sw + Math.min(sw - 1, (x * sw / w) | 0)) * 4
+        const o = (y * w + x) * 4
+        rgba[o] = Math.min(255, 18 + sd[so + 2] * 3.4 + sun * 140)
+        rgba[o + 1] = Math.min(255, 18 + sd[so + 1] * 3.4 + sun * 132)
+        rgba[o + 2] = Math.min(255, 20 + sd[so] * 3.4 + sun * 112)
+        rgba[o + 3] = 255
+      }
+    }
+    out.push({ width: w, height: h, rgba })
   }
   return out
 }

@@ -1,6 +1,6 @@
 import {
   FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, extractWorldMesh, extractMapEnts, extractCollisionMesh,
-  extractStaticModels, extractMaterialImages, parseVec3,
+  extractStaticModels, extractMaterialImages, extractLightmaps, parseVec3,
 } from '@mwthree/iw5-core'
 import { openSource } from './sources'
 import type { MapRequest, MapResponse, SpawnPoint, TextureData } from './protocol'
@@ -25,6 +25,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
     const entities = extractMapEnts(zone)
     const collision = extractCollisionMesh(zone)
     const staticModels = extractStaticModels(zone)
+    const lightmaps = extractLightmaps(zone)
 
     const spawns: SpawnPoint[] = []
     for (const ent of entities) {
@@ -42,7 +43,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
       {
         type: 'done',
         fileName,
-        positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
+        positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, lmUvs: mesh.lmUvs, lightmaps, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
         collision: collision && { positions: collision.positions, indices: collision.indices, brushes: collision.brushCount },
         staticModels,
         spawns,
@@ -53,7 +54,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
           msDecompress: Math.round(t1 - t0), msParse: Math.round(t2 - t1), msTotal: Math.round(performance.now() - t0),
         },
       },
-      [mesh.positions.buffer, mesh.normals.buffer, mesh.uvs.buffer, mesh.colors.buffer, mesh.indices.buffer, ...(collision ? [collision.positions.buffer, collision.indices.buffer] : []),
+      [mesh.positions.buffer, mesh.normals.buffer, mesh.uvs.buffer, mesh.lmUvs.buffer, ...lightmaps.map(l => l.rgba.buffer), mesh.colors.buffer, mesh.indices.buffer, ...(collision ? [collision.positions.buffer, collision.indices.buffer] : []),
         ...staticModels.flatMap(m => [m.positions.buffer, m.normals.buffer, m.uvs.buffer, m.colors.buffer, m.indices.buffer, m.matrices.buffer])],
     )
 

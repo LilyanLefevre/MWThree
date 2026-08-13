@@ -29,7 +29,7 @@ export interface LoadResult {
   assets?: ZoneAssetSummary[]
 }
 
-import type { MaterialGroup } from '@mwthree/iw5-core'
+import type { MaterialGroup, Lightmap } from '@mwthree/iw5-core'
 import type { SpawnPoint, MapStats, CollisionData, StaticModelData, TextureData } from './worker/protocol'
 
 /** A loaded map, ready to render (meters, Y-up). */
@@ -38,6 +38,8 @@ export interface MapWorld {
   positions: Float32Array
   normals: Float32Array
   uvs: Float32Array
+  lmUvs: Float32Array
+  lightmaps: Lightmap[]
   colors: Float32Array
   indices: Uint32Array
   groups: MaterialGroup[]
