@@ -34,6 +34,8 @@ export function parseVec3(s: string | undefined): [number, number, number] | nul
   return p.length >= 3 && p.every(Number.isFinite) ? [p[0], p[1], p[2]] : null
 }
 
+export interface MaterialGroup { material: string; start: number; count: number }
+
 export interface WorldMesh {
   /** meters, Y-up (x, z, -y of the game's Z-up) */
   positions: Float32Array
@@ -42,8 +44,10 @@ export interface WorldMesh {
   /** per-vertex debug color derived from the material name */
   colors: Float32Array
   indices: Uint32Array
-  /** one entry per drawn surface, in index order */
-  surfaces: { material: string; indexStart: number; indexCount: number }[]
+  /** one entry per drawn surface */
+  surfaces: { material: string; indexCount: number }[]
+  /** index ranges per material, for multi-material rendering */
+  groups: MaterialGroup[]
   skippedSurfaces: number
 }
 
@@ -98,7 +102,7 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
     const n = unpackUnitVec(dv.getUint32(o + 36, true))
     normals[i * 3] = n[0]; normals[i * 3 + 1] = n[2]; normals[i * 3 + 2] = -n[1]
   }
-  const idx: number[] = []
+  const byMaterial = new Map<string, number[]>()
   const drawn: WorldMesh['surfaces'] = []
   let skipped = 0
   for (const s of surfaces) {
@@ -107,14 +111,21 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
     const { firstVertex, triCount, baseIndex, vertexCount } = s.tris
     const [cr, cg, cb] = materialColor(name)
     for (let v = firstVertex; v < firstVertex + vertexCount && v < vcount; v++) { colors[v * 3] = cr; colors[v * 3 + 1] = cg; colors[v * 3 + 2] = cb }
-    const start = idx.length
+    let idx = byMaterial.get(name)
+    if (!idx) byMaterial.set(name, idx = [])
     // game triangles are clockwise; swap two vertices so front faces are counter-clockwise (three.js)
     for (let k = 0; k < triCount * 3; k += 3) {
       idx.push(firstVertex + srcIdx[baseIndex + k], firstVertex + srcIdx[baseIndex + k + 2], firstVertex + srcIdx[baseIndex + k + 1])
     }
-    drawn.push({ material: name, indexStart: start, indexCount: triCount * 3 })
+    drawn.push({ material: name, indexCount: triCount * 3 })
   }
-  return { positions, normals, uvs, colors, indices: Uint32Array.from(idx), surfaces: drawn, skippedSurfaces: skipped }
+  const groups: MaterialGroup[] = []
+  const all: number[] = []
+  for (const [material, list] of byMaterial) {
+    groups.push({ material, start: all.length, count: list.length })
+    for (let i = 0; i < list.length; i++) all.push(list[i])
+  }
+  return { positions, normals, uvs, colors, indices: Uint32Array.from(all), surfaces: drawn, groups, skippedSurfaces: skipped }
 }
 
 export interface MapSummary {
@@ -140,6 +151,8 @@ export interface StaticModelBatch {
   uvs: Float32Array
   colors: Float32Array
   indices: Uint32Array
+  /** index ranges per material */
+  groups: MaterialGroup[]
   /** 16 floats (column-major, scene space) per instance */
   matrices: Float32Array
 }
@@ -158,13 +171,16 @@ function buildModelGeometry(zone: LoadedZone, model: any): Omit<StaticModelBatch
   const surfs: any[] | undefined = surfsAsset?.surfs
   if (!surfs?.length) return null
   const pos: number[] = [], nrm: number[] = [], uv: number[] = [], col: number[] = [], idx: number[] = []
+  const groups: MaterialGroup[] = []
   const handles: any[] = model.materialHandles ?? []
   surfs.forEach((surf, si) => {
     const verts = surf.verts0 as PlainArray | undefined
     const tris = surf.triIndices as PlainArray | undefined
     if (!verts || !tris || !surf.vertCount || !surf.triCount) return
     const vdv = new DataView(verts.bytes.buffer, verts.bytes.byteOffset, verts.bytes.byteLength)
-    const [cr, cg, cb] = materialColor(materialName(zone, handles[(lod.surfIndex ?? 0) + si]))
+    const matName = materialName(zone, handles[(lod.surfIndex ?? 0) + si])
+    const [cr, cg, cb] = materialColor(matName)
+    const idxStart = idx.length
     const base = pos.length / 3
     for (let i = 0; i < verts.length; i++) {
       const o = i * verts.stride
@@ -180,9 +196,10 @@ function buildModelGeometry(zone: LoadedZone, model: any): Omit<StaticModelBatch
       const a = tdv.getUint16(t * 6, true), b = tdv.getUint16(t * 6 + 2, true), c = tdv.getUint16(t * 6 + 4, true)
       idx.push(base + a, base + c, base + b) // game triangles are clockwise
     }
+    groups.push({ material: matName, start: idxStart, count: idx.length - idxStart })
   })
   if (!idx.length) return null
-  return { positions: Float32Array.from(pos), normals: Float32Array.from(nrm), uvs: Float32Array.from(uv), colors: Float32Array.from(col), indices: Uint32Array.from(idx) }
+  return { positions: Float32Array.from(pos), normals: Float32Array.from(nrm), uvs: Float32Array.from(uv), colors: Float32Array.from(col), indices: Uint32Array.from(idx), groups }
 }
 
 /** Static props placed in the world (GfxWorld.dpvs.smodelDrawInsts), grouped per model for instancing. */
@@ -207,6 +224,39 @@ export function extractStaticModels(zone: LoadedZone): StaticModelBatch[] {
   for (const { model, mats } of byModel.values()) {
     const g = buildModelGeometry(zone, model)
     if (g) out.push({ name: model.name ?? '', ...g, matrices: Float32Array.from(mats) })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- materials
+
+const TS_COLOR_MAP = 2
+
+/** Name of the color-map image of a Material (null when it has none). */
+function colorImageName(zone: LoadedZone, mat: any): string | null {
+  mat = resolveVal(zone, mat)
+  const table: any[] | undefined = mat?.textureTable
+  if (!table?.length) return null
+  const def = table.find(t => t.semantic === TS_COLOR_MAP)
+  const img = resolveVal(zone, def?.u?.image)
+  return typeof img?.name === 'string' ? img.name : null
+}
+
+/** material name -> color-map image name, for every material drawn by the world and its static models. */
+export function extractMaterialImages(zone: LoadedZone): Record<string, string | null> {
+  const out: Record<string, string | null> = {}
+  const add = (mat: any) => {
+    const name = materialName(zone, mat)
+    if (name && !(name in out)) out[name] = colorImageName(zone, mat)
+  }
+  const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
+  for (const s of gfx?.dpvs?.surfaces ?? []) add(s.material)
+  const seen = new Set<any>()
+  for (const inst of gfx?.dpvs?.smodelDrawInsts ?? []) {
+    const model = resolveVal(zone, inst.model)
+    if (!model || seen.has(model)) continue
+    seen.add(model)
+    for (const h of model.materialHandles ?? []) add(h)
   }
   return out
 }

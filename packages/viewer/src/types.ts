@@ -29,15 +29,21 @@ export interface LoadResult {
   assets?: ZoneAssetSummary[]
 }
 
-import type { SpawnPoint, MapStats, CollisionData, StaticModelData } from './worker/protocol'
+import type { MaterialGroup } from '@mwthree/iw5-core'
+import type { SpawnPoint, MapStats, CollisionData, StaticModelData, TextureData } from './worker/protocol'
 
 /** A loaded map, ready to render (meters, Y-up). */
 export interface MapWorld {
   fileName: string
   positions: Float32Array
   normals: Float32Array
+  uvs: Float32Array
   colors: Float32Array
   indices: Uint32Array
+  groups: MaterialGroup[]
+  /** material name -> color-map image name */
+  materialImages: Record<string, string | null>
+  textures: TextureData[]
   /** null when the zone has no clipMap: the visible mesh is used for physics */
   collision: CollisionData | null
   staticModels: StaticModelData[]
