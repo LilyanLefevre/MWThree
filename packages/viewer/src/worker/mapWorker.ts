@@ -1,6 +1,6 @@
 import {
   FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, extractWorldMesh, extractMapEnts, extractCollisionMesh,
-  extractStaticModels, extractMaterialImages, extractLightmaps, parseVec3,
+  extractStaticModels, extractEntityModels, extractMaterialImages, extractLightmaps, extractSun, parseVec3,
 } from '@mwthree/iw5-core'
 import { openSource } from './sources'
 import type { MapRequest, MapResponse, SpawnPoint, TextureData } from './protocol'
@@ -24,8 +24,11 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
     if (!mesh) throw new Error('Aucun GfxWorld dans cette zone (pas une map ?)')
     const entities = extractMapEnts(zone)
     const collision = extractCollisionMesh(zone)
-    const staticModels = extractStaticModels(zone)
-    const lightmaps = extractLightmaps(zone)
+    const worldModels = extractStaticModels(zone)
+    const { batches: entityModels, missing: missingModels } = extractEntityModels(zone, entities)
+    const staticModels = [...worldModels, ...entityModels]
+    const sun = extractSun(zone)
+    const lightmaps = extractLightmaps(zone, sun)
 
     const spawns: SpawnPoint[] = []
     for (const ent of entities) {
@@ -46,11 +49,12 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
         positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, lmUvs: mesh.lmUvs, vertexColors: mesh.vertexColors, lightmaps, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
         collision: collision && { positions: collision.positions, indices: collision.indices, brushes: collision.brushCount },
         staticModels,
+        sun,
         spawns,
         stats: {
           zoneBytes: zoneBuf.byteLength, assets: zone.assets.length, assetCounts: counts,
           entities: entities.length, surfaces: mesh.surfaces.length,
-          staticModels: staticModels.length, staticInstances: staticModels.reduce((a, m) => a + m.matrices.length / 16, 0), textures: 0,
+          staticModels: staticModels.length, staticInstances: staticModels.reduce((a, m) => a + m.matrices.length / 16, 0), textures: 0, entityProps: entityModels.reduce((a, m) => a + m.matrices.length / 16, 0), missingEntityModels: missingModels.length,
           msDecompress: Math.round(t1 - t0), msParse: Math.round(t2 - t1), msTotal: Math.round(performance.now() - t0),
         },
       },

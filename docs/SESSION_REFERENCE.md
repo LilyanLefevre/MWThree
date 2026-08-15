@@ -8,7 +8,7 @@
 | 1 — Décompression FastFile (`IWff0100` signé, `IWffu100`) | ✓ |
 | 2 — Zone loader (assets, pointeurs, blocs) | ✓ — les 16 maps `mp_*` de `inputs/zone/` se chargent à l'octet près |
 | 3 — Collision + déplacement FPS | ✓ — brushes `clipMap_t` solides/playerclip → enveloppes convexes → un trimesh Rapier (+ triangles de terrain) ; marche, saut, vol libre, **C** affiche la collision. Reste : collision des modèles statiques |
-| 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Manquent : LOD, collision des props |
+| 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques et props d'entités (`script_model`, état intact) instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Manquent : LOD, collision des props |
 | 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (approximation). Manquent : normal/spec maps, éclairage des props (light probes), shaders |
 | 6 — Entités / UX | ◐ — entités décodées (spawns utilisés pour placer le joueur) ; pas d'overlay debug |
 

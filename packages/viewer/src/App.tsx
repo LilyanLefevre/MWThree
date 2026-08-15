@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
+import * as THREE from 'three'
 import { Physics } from '@react-three/rapier'
 import FolderSelector from './components/FolderSelector'
 import { WorldMesh } from './components/WorldMesh'
@@ -153,8 +154,12 @@ function App() {
       <Canvas camera={{ position: [0, 3, 5], fov: 75, near: 0.05, far: 6000 }} style={{ width: '100%', height: '100%' }}>
         <color attach="background" args={['#9fb4c7']} />
         <fog attach="fog" args={['#9fb4c7', 300, 2500]} />
-        <hemisphereLight args={['#dfe9f5', '#6b6252', 1.1]} />
-        <directionalLight position={[300, 500, 200]} intensity={1.4} />
+        <hemisphereLight args={['#cfdcee', '#7a6a55', 0.9]} />
+        <directionalLight
+          position={world?.sun ? world.sun.direction.map(v => v * 500) as [number, number, number] : [300, 500, 200]}
+          color={world?.sun ? new THREE.Color(...world.sun.color.map(c => Math.min(1, c / Math.max(...world.sun!.color, 1)))) : '#ffffff'}
+          intensity={1.5}
+        />
         {world && spawn && (
           <Physics gravity={[0, -20, 0]}>
             <WorldMesh world={world} showCollision={showCollision} />
@@ -179,6 +184,7 @@ function App() {
             <div>{(world.indices.length / 3).toLocaleString()} triangles · {world.stats.surfaces.toLocaleString()} surfaces</div>
             <div>{world.stats.entities.toLocaleString()} entités · {world.spawns.length} spawns</div>
             <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles){world.textures.length > 0 && ` · ${world.textures.length} textures`}</div>
+            <div>dont {world.stats.entityProps} issus d'entités ({world.stats.missingEntityModels} modèles absents)</div>
             <div style={{ color: '#aaa' }}>
               décompression {world.stats.msDecompress} ms · lecture {world.stats.msParse} ms
             </div>

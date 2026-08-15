@@ -1,4 +1,4 @@
-import type { StaticModelBatch, MaterialGroup, Lightmap } from '@mwthree/iw5-core'
+import type { StaticModelBatch, MaterialGroup, Lightmap, Sun } from '@mwthree/iw5-core'
 
 /** Where to read the .iwd archives from: local files (folder picker) or URLs (dev server, HTTP Range). */
 export type IwdSource = { file: File } | { url: string }
@@ -23,6 +23,9 @@ export interface MapStats {
   staticModels: number
   staticInstances: number
   textures: number
+  /** props placed by entities (vehicles, crates…) and distinct entity models absent from the zone */
+  entityProps: number
+  missingEntityModels: number
   msDecompress: number
   msParse: number
   msTotal: number
@@ -51,6 +54,7 @@ export type MapResponse =
       groups: MaterialGroup[]
       collision: CollisionData | null
       staticModels: StaticModelData[]
+      sun: Sun | null
       spawns: SpawnPoint[]
       stats: MapStats
     }

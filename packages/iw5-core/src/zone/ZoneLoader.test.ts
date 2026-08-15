@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { FastFileLoader } from '../FastFileLoader.js'
 import { ZoneLoader } from './ZoneLoader.js'
-import { extractMapEnts, extractStaticModels, extractWorldMesh } from './MapExtract.js'
+import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractWorldMesh } from './MapExtract.js'
 
 // Integration test against a real retail zone. Game files are never committed:
 // the test is skipped when the local copy is missing.
@@ -42,6 +42,15 @@ describe.skipIf(!existsSync(DOME))('ZoneLoader (mp_dome.ff)', () => {
       expect(max).toBeLessThan(b.positions.length / 3)
       expect(b.matrices.length % 16).toBe(0)
     }
+  })
+
+  it('places entity models and finds the sun', () => {
+    const { batches, missing } = extractEntityModels(zone, extractMapEnts(zone))
+    expect(batches.length).toBeGreaterThan(0)
+    expect(Array.isArray(missing)).toBe(true)
+    const sun = extractSun(zone)!
+    expect(Math.hypot(...sun.direction)).toBeCloseTo(1, 3)
+    expect(sun.color[0]).toBeGreaterThan(0)
   })
 
   it('extracts map entities', () => {

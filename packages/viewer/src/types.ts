@@ -29,7 +29,7 @@ export interface LoadResult {
   assets?: ZoneAssetSummary[]
 }
 
-import type { MaterialGroup, Lightmap } from '@mwthree/iw5-core'
+import type { MaterialGroup, Lightmap, Sun } from '@mwthree/iw5-core'
 import type { SpawnPoint, MapStats, CollisionData, StaticModelData, TextureData } from './worker/protocol'
 
 /** A loaded map, ready to render (meters, Y-up). */
@@ -50,6 +50,7 @@ export interface MapWorld {
   /** null when the zone has no clipMap: the visible mesh is used for physics */
   collision: CollisionData | null
   staticModels: StaticModelData[]
+  sun: Sun | null
   spawns: SpawnPoint[]
   stats: MapStats
 }
