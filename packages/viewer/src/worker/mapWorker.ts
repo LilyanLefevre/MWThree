@@ -43,7 +43,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
       {
         type: 'done',
         fileName,
-        positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, lmUvs: mesh.lmUvs, lightmaps, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
+        positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, lmUvs: mesh.lmUvs, vertexColors: mesh.vertexColors, lightmaps, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
         collision: collision && { positions: collision.positions, indices: collision.indices, brushes: collision.brushCount },
         staticModels,
         spawns,
@@ -54,7 +54,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
           msDecompress: Math.round(t1 - t0), msParse: Math.round(t2 - t1), msTotal: Math.round(performance.now() - t0),
         },
       },
-      [mesh.positions.buffer, mesh.normals.buffer, mesh.uvs.buffer, mesh.lmUvs.buffer, ...lightmaps.map(l => l.rgba.buffer), mesh.colors.buffer, mesh.indices.buffer, ...(collision ? [collision.positions.buffer, collision.indices.buffer] : []),
+      [mesh.positions.buffer, mesh.normals.buffer, mesh.uvs.buffer, mesh.lmUvs.buffer, mesh.vertexColors.buffer, ...lightmaps.map(l => l.rgba.buffer), mesh.colors.buffer, mesh.indices.buffer, ...(collision ? [collision.positions.buffer, collision.indices.buffer] : []),
         ...staticModels.flatMap(m => [m.positions.buffer, m.normals.buffer, m.uvs.buffer, m.colors.buffer, m.indices.buffer, m.matrices.buffer])],
     )
 

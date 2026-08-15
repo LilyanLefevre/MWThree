@@ -38,6 +38,8 @@ export interface MaterialGroup {
   material: string
   start: number
   count: number
+  /** blended decal layer (alpha comes from the vertex color) */
+  decal?: boolean
   /** index into the lightmap list, or -1 for unlit-by-lightmap surfaces */
   lightmap?: number
 }
@@ -49,6 +51,8 @@ export interface WorldMesh {
   uvs: Float32Array
   /** lightmap atlas coordinates */
   lmUvs: Float32Array
+  /** RGBA vertex color, white with the vertex alpha (used to blend decals) */
+  vertexColors: Float32Array
   /** per-vertex debug color derived from the material name */
   colors: Float32Array
   indices: Uint32Array
@@ -59,12 +63,21 @@ export interface WorldMesh {
   skippedSurfaces: number
 }
 
-const HIDDEN_MATERIAL = /(^|\/)(sky|clip|trigger|nodraw|caulk|portal|hint|origin|skip|tools?)(_|$|\/)/i
+const HIDDEN_MATERIAL = /(^|\/)(sky|clip|trigger|nodraw|caulk|portal|hint|origin|skip|tools?|hdrportal|shadowcaster|atmos_)/i
+
+/** Material.info.sortKey values from this one up (except the shadow-caster key) are blended decal layers. */
+const DECAL_SORT_KEY_MIN = 6
+const SHADOW_SORT_KEY = 34
 
 function materialName(zone: LoadedZone, mat: any): string {
   if (!mat) return ''
   if (mat.$ref !== undefined) { const r = zone.resolveRef(mat.$ref); mat = r?.value }
   return mat?.info?.name ?? ''
+}
+
+function sortKeyOf(zone: LoadedZone, mat: any): number {
+  mat = resolveVal(zone, mat)
+  return mat?.info?.sortKey ?? 0
 }
 
 function resolveVal(zone: LoadedZone, v: any): any {
@@ -103,30 +116,33 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
   const uvs = new Float32Array(vcount * 2)
   const colors = new Float32Array(vcount * 3).fill(0.6)
   const lmUvs = new Float32Array(vcount * 2)
+  const vertexColors = new Float32Array(vcount * 4).fill(1)
   const lmCount = (gfx.draw.lightmaps as any[] | undefined)?.length ?? 0
   for (let i = 0; i < vcount; i++) {
     const o = i * stride
     const x = dv.getFloat32(o, true), y = dv.getFloat32(o + 4, true), z = dv.getFloat32(o + 8, true)
     positions[i * 3] = x * UNIT_SCALE; positions[i * 3 + 1] = z * UNIT_SCALE; positions[i * 3 + 2] = -y * UNIT_SCALE
     uvs[i * 2] = dv.getFloat32(o + 20, true); uvs[i * 2 + 1] = dv.getFloat32(o + 24, true)
+    vertexColors[i * 4 + 3] = dv.getUint8(o + 19) / 255
     lmUvs[i * 2] = dv.getFloat32(o + 28, true); lmUvs[i * 2 + 1] = dv.getFloat32(o + 32, true)
     const n = unpackUnitVec(dv.getUint32(o + 36, true))
     normals[i * 3] = n[0]; normals[i * 3 + 1] = n[2]; normals[i * 3 + 2] = -n[1]
   }
-  const byMaterial = new Map<string, { material: string; lightmap: number; idx: number[] }>()
+  const byMaterial = new Map<string, { material: string; lightmap: number; decal: boolean; idx: number[] }>()
   const drawn: WorldMesh['surfaces'] = []
   let skipped = 0
   for (const s of surfaces) {
     const name = materialName(zone, s.material)
-    if (HIDDEN_MATERIAL.test(name)) { skipped++; continue }
+    if (HIDDEN_MATERIAL.test(name) || sortKeyOf(zone, s.material) === SHADOW_SORT_KEY) { skipped++; continue }
     const { firstVertex, triCount, baseIndex, vertexCount } = s.tris
     const [cr, cg, cb] = materialColor(name)
     for (let v = firstVertex; v < firstVertex + vertexCount && v < vcount; v++) { colors[v * 3] = cr; colors[v * 3 + 1] = cg; colors[v * 3 + 2] = cb }
     const lmi = s.laf?.fields?.lightmapIndex ?? 255
     const lightmap = lmi < lmCount ? lmi : -1
+    const decal = sortKeyOf(zone, s.material) >= DECAL_SORT_KEY_MIN
     const key = `${name}|${lightmap}`
     let entry = byMaterial.get(key)
-    if (!entry) byMaterial.set(key, entry = { material: name, lightmap, idx: [] })
+    if (!entry) byMaterial.set(key, entry = { material: name, lightmap, decal, idx: [] })
     const idx = entry.idx
     // game triangles are clockwise; swap two vertices so front faces are counter-clockwise (three.js)
     for (let k = 0; k < triCount * 3; k += 3) {
@@ -136,11 +152,11 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
   }
   const groups: MaterialGroup[] = []
   const all: number[] = []
-  for (const { material, lightmap, idx: list } of byMaterial.values()) {
-    groups.push({ material, lightmap, start: all.length, count: list.length })
+  for (const { material, lightmap, decal, idx: list } of byMaterial.values()) {
+    groups.push({ material, lightmap, decal, start: all.length, count: list.length })
     for (let i = 0; i < list.length; i++) all.push(list[i])
   }
-  return { positions, normals, uvs, lmUvs, colors, indices: Uint32Array.from(all), surfaces: drawn, groups, skippedSurfaces: skipped }
+  return { positions, normals, uvs, lmUvs, vertexColors, colors, indices: Uint32Array.from(all), surfaces: drawn, groups, skippedSurfaces: skipped }
 }
 
 export interface MapSummary {

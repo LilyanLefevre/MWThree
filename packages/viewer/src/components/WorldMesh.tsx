@@ -10,12 +10,13 @@ export function WorldMesh({ world, showCollision }: { world: MapWorld; showColli
     g.setAttribute('position', new THREE.BufferAttribute(world.positions, 3))
     g.setAttribute('normal', new THREE.BufferAttribute(world.normals, 3))
     g.setAttribute('uv', new THREE.BufferAttribute(world.uvs, 2))
+    g.setAttribute('color', new THREE.BufferAttribute(world.vertexColors, 4))
     g.setAttribute('uv1', new THREE.BufferAttribute(world.lmUvs, 2))
     g.setIndex(new THREE.BufferAttribute(world.indices, 1))
     world.groups.forEach((grp, i) => g.addGroup(grp.start, grp.count, i))
     g.computeBoundingSphere()
     return g
-  }, [world.positions, world.normals, world.uvs, world.lmUvs, world.indices, world.groups])
+  }, [world.positions, world.normals, world.uvs, world.lmUvs, world.vertexColors, world.indices, world.groups])
   useEffect(() => () => geometry.dispose(), [geometry])
 
   const materials = useMemo(() => {
