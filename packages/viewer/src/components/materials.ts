@@ -74,7 +74,8 @@ export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; 
     if (!mat) {
       const src = base as THREE.MeshLambertMaterial
       mat = new THREE.MeshBasicMaterial({
-        map: src.map, color: src.map ? 0xffffff : src.color, lightMap: lm, lightMapIntensity: lm ? Math.PI : 1,
+        map: src.map, color: src.map ? 0xffffff : src.color,
+        ...(lm ? { lightMap: lm, lightMapIntensity: Math.PI } : {}),
         alphaTest: g.decal ? 0.02 : src.alphaTest, side: src.side,
         // decals are blended over the surface below with the vertex alpha
         ...(g.decal ? { vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {}),

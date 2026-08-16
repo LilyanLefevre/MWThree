@@ -55,7 +55,7 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 
 ## Prochaines étapes
 
-1. **Éclairage** : formule exacte des lightmaps, éclairage des props, normal/specular maps, LOD des props.
+1. **Éclairage** : formule exacte des lightmaps, vraie light grid du moteur pour les props, specular, LOD des props.
 2. **Perf du chargement** : décodage paresseux, moins de copies, cache IndexedDB du résultat.
 3. Overlay entités (spawns, triggers), sélecteur de map, noclip/téléport.
 

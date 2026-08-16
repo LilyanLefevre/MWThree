@@ -1,6 +1,6 @@
 import {
   FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, extractWorldMesh, extractMapEnts, extractCollisionMesh,
-  extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, parseVec3,
+  extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, computePropLighting, parseVec3,
 } from '@mwthree/iw5-core'
 import { openSource } from './sources'
 import type { MapRequest, MapResponse, SpawnPoint, TextureData } from './protocol'
@@ -29,6 +29,8 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
     const staticModels = [...worldModels, ...entityModels]
     const sun = extractSun(zone)
     const lightmaps = extractLightmaps(zone, sun)
+    const propLight = computePropLighting(mesh, lightmaps, staticModels)
+    const staticModelData = staticModels.map((m, i) => ({ ...m, instanceColors: propLight[i] }))
 
     const spawns: SpawnPoint[] = []
     for (const ent of entities) {
@@ -48,7 +50,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
         fileName,
         positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, lmUvs: mesh.lmUvs, vertexColors: mesh.vertexColors, lightmaps, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
         collision: collision && { positions: collision.positions, indices: collision.indices, brushes: collision.brushCount },
-        staticModels,
+        staticModels: staticModelData,
         sun,
         spawns,
         stats: {
@@ -59,7 +61,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
         },
       },
       [mesh.positions.buffer, mesh.normals.buffer, mesh.uvs.buffer, mesh.lmUvs.buffer, mesh.vertexColors.buffer, ...lightmaps.map(l => l.rgba.buffer), mesh.colors.buffer, mesh.indices.buffer, ...(collision ? [collision.positions.buffer, collision.indices.buffer] : []),
-        ...staticModels.flatMap(m => [m.positions.buffer, m.normals.buffer, m.uvs.buffer, m.colors.buffer, m.indices.buffer, m.matrices.buffer])],
+        ...staticModelData.flatMap(m => [m.positions.buffer, m.normals.buffer, m.uvs.buffer, m.colors.buffer, m.indices.buffer, m.matrices.buffer, m.instanceColors.buffer])],
     )
 
     // textures are streamed after the geometry so the map is explorable immediately
