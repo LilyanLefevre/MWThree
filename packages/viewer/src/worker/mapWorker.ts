@@ -1,6 +1,6 @@
 import {
   FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, extractWorldMesh, extractMapEnts, extractCollisionMesh,
-  extractStaticModels, extractEntityModels, extractMaterialImages, extractLightmaps, extractSun, parseVec3,
+  extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, parseVec3,
 } from '@mwthree/iw5-core'
 import { openSource } from './sources'
 import type { MapRequest, MapResponse, SpawnPoint, TextureData } from './protocol'
@@ -65,9 +65,15 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
     // textures are streamed after the geometry so the map is explorable immediately
     if (iwd.length) {
       const materialImages = extractMaterialImages(zone)
+      const allNormals = extractMaterialNormals(zone)
+      // normal maps only matter for dynamically lit surfaces (the props); the world is lit by its lightmaps
+      const propMaterials = new Set(staticModels.flatMap(m => m.groups.map(g => g.material)))
+      const materialNormals: Record<string, string | null> = {}
+      for (const n of propMaterials) materialNormals[n] = allNormals[n] ?? null
       const lib = new ImageLibrary()
       for (const src of iwd) await lib.addArchive(await openSource(src))
       const wanted = [...new Set(Object.values(materialImages).filter((n): n is string => !!n))]
+      const wantedNormals = [...new Set(Object.values(materialNormals).filter((n): n is string => !!n))]
       const textures: TextureData[] = []
       let missing = 0
       for (let i = 0; i < wanted.length; i++) {
@@ -82,7 +88,15 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
           textures.push({ name, width: img.width, height: img.height, rgba: img.rgba, hasAlpha })
         } catch { missing++ }
       }
-      post({ type: 'textures', textures, materialImages, missing }, textures.map(t => t.rgba.buffer))
+      for (const name of wantedNormals) {
+        try {
+          const data = await lib.readIwi(name)
+          if (!data) continue
+          const img = parseIwi(data, 256, true)
+          textures.push({ name, width: img.width, height: img.height, rgba: img.rgba, hasAlpha: false, normal: true })
+        } catch { /* keep the flat normal */ }
+      }
+      post({ type: 'textures', textures, materialImages, materialNormals, missing }, textures.map(t => t.rgba.buffer))
     }
   } catch (err) {
     post({ type: 'error', message: err instanceof Error ? err.message : String(err) })

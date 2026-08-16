@@ -46,6 +46,8 @@ export interface MapWorld {
   groups: MaterialGroup[]
   /** material name -> color-map image name */
   materialImages: Record<string, string | null>
+  /** material name -> normal-map image name (props only) */
+  materialNormals: Record<string, string | null>
   textures: TextureData[]
   /** null when the zone has no clipMap: the visible mesh is used for physics */
   collision: CollisionData | null

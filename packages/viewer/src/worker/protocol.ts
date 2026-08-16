@@ -5,7 +5,7 @@ export type IwdSource = { file: File } | { url: string }
 
 export interface MapRequest { buffer: ArrayBuffer; fileName: string; iwd: IwdSource[] }
 
-export interface TextureData { name: string; width: number; height: number; rgba: Uint8Array; hasAlpha: boolean }
+export interface TextureData { name: string; width: number; height: number; rgba: Uint8Array; hasAlpha: boolean; normal?: boolean }
 
 export interface SpawnPoint {
   classname: string
@@ -38,7 +38,7 @@ export type StaticModelData = Pick<StaticModelBatch, 'name' | 'positions' | 'nor
 
 export type MapResponse =
   | { type: 'progress'; stage: string }
-  | { type: 'textures'; textures: TextureData[]; materialImages: Record<string, string | null>; missing: number }
+  | { type: 'textures'; textures: TextureData[]; materialImages: Record<string, string | null>; materialNormals: Record<string, string | null>; missing: number }
   | { type: 'error'; message: string }
   | {
       type: 'done'

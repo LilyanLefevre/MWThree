@@ -58,3 +58,4 @@ flowchart LR
 - Un `.iwd` est un zip : on lit uniquement le répertoire central (quelques dizaines de Ko sur ~300 Mo), puis les entrées voulues (lecture aléatoire, `File.slice` ou requêtes HTTP Range). L'index des 49 archives de `inputs/main/` (≈ 24 000 images) se construit en moins d'une seconde.
 - Un `.iwi` (version 8) : en-tête de 32 octets (`IWi`, version, flags, format, largeur/hauteur, tailles par niveau de qualité) suivi de la **chaîne de mips du plus petit au plus grand**. Formats gérés : DXT1/3/5, ARGB32, RGB24, GA16, A8.
 - On décode le plus grand mip ≤ 512 px pour borner la mémoire.
+- Les **normal maps** sont en DXT5nm : X dans l'alpha, Y dans le vert (R = G = B), Z implicite et Y orienté vers le bas. Elles sont réécrites en carte RGB classique (`toNormalMap`).

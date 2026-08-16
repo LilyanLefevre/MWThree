@@ -313,23 +313,29 @@ export function extractEntityModels(zone: LoadedZone, entities: Entity[]): { bat
 // ---------------------------------------------------------------- materials
 
 const TS_COLOR_MAP = 2
+const TS_NORMAL_MAP = 5
 
-/** Name of the color-map image of a Material (null when it has none). */
-function colorImageName(zone: LoadedZone, mat: any): string | null {
+/** Name of the image bound to a Material's texture slot (null when it has none). */
+function imageName(zone: LoadedZone, mat: any, semantic: number): string | null {
   mat = resolveVal(zone, mat)
   const table: any[] | undefined = mat?.textureTable
   if (!table?.length) return null
-  const def = table.find(t => t.semantic === TS_COLOR_MAP)
+  const def = table.find(t => t.semantic === semantic)
   const img = resolveVal(zone, def?.u?.image)
   return typeof img?.name === 'string' ? img.name : null
 }
 
 /** material name -> color-map image name, for every material drawn by the world and its static models. */
-export function extractMaterialImages(zone: LoadedZone): Record<string, string | null> {
+/** Same as extractMaterialImages for the normal-map slot. */
+export function extractMaterialNormals(zone: LoadedZone): Record<string, string | null> {
+  return extractMaterialImages(zone, TS_NORMAL_MAP)
+}
+
+export function extractMaterialImages(zone: LoadedZone, semantic = TS_COLOR_MAP): Record<string, string | null> {
   const out: Record<string, string | null> = {}
   const add = (mat: any) => {
     const name = materialName(zone, mat)
-    if (name && !(name in out)) out[name] = colorImageName(zone, mat)
+    if (name && !(name in out)) out[name] = imageName(zone, mat, semantic)
   }
   const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
   for (const s of gfx?.dpvs?.surfaces ?? []) add(s.material)
