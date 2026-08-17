@@ -6,6 +6,7 @@ import FolderSelector from './components/FolderSelector'
 import { WorldMesh } from './components/WorldMesh'
 import { Player } from './components/Player'
 import { StaticModels } from './components/StaticModels'
+import { Sky } from './components/Sky'
 import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { MapInfo, MapWorld } from './types'
 import type { IwdSource, MapResponse } from './worker/protocol'
@@ -105,10 +106,10 @@ function App() {
       if (m.type === 'progress') setStage(m.stage)
       else if (m.type === 'error') { setError(m.message); setLoading(null); w.terminate() }
       else if (m.type === 'textures') {
-        setWorld(prev => prev && { ...prev, textures: m.textures, materialImages: m.materialImages, materialNormals: m.materialNormals, stats: { ...prev.stats, textures: m.textures.length } })
+        setWorld(prev => prev && { ...prev, textures: m.textures, materialImages: m.materialImages, materialNormals: m.materialNormals, sky: m.sky, stats: { ...prev.stats, textures: m.textures.length } })
         setStage(''); setTexturing(false); w.terminate()
       } else {
-        setWorld({ ...m, materialImages: {}, materialNormals: {}, textures: [] }); setLoading(null)
+        setWorld({ ...m, materialImages: {}, materialNormals: {}, textures: [], sky: null }); setLoading(null)
         setTexturing(iwd.length > 0)
         if (iwd.length === 0) w.terminate()
         ;(window as unknown as { __mapStats?: unknown }).__mapStats = m.stats
@@ -153,6 +154,7 @@ function App() {
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#0b0d10' }}>
       <Canvas camera={{ position: [0, 3, 5], fov: 75, near: 0.05, far: 6000 }} style={{ width: '100%', height: '100%' }}>
         <color attach="background" args={['#9fb4c7']} />
+        {world?.sky && <Sky sky={world.sky} />}
         <fog attach="fog" args={['#9fb4c7', 300, 2500]} />
         <hemisphereLight args={['#cfdcee', '#7a6a55', 0.9]} />
         <directionalLight

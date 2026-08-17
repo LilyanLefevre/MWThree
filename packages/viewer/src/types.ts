@@ -49,6 +49,7 @@ export interface MapWorld {
   /** material name -> normal-map image name (props only) */
   materialNormals: Record<string, string | null>
   textures: TextureData[]
+  sky: { width: number; height: number; rgba: Uint8Array } | null
   /** null when the zone has no clipMap: the visible mesh is used for physics */
   collision: CollisionData | null
   staticModels: StaticModelData[]

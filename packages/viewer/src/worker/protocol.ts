@@ -43,7 +43,9 @@ export type StaticModelData = Pick<StaticModelBatch, 'name' | 'positions' | 'nor
 
 export type MapResponse =
   | { type: 'progress'; stage: string }
-  | { type: 'textures'; textures: TextureData[]; materialImages: Record<string, string | null>; materialNormals: Record<string, string | null>; missing: number }
+  | { type: 'textures'; textures: TextureData[]; materialImages: Record<string, string | null>; materialNormals: Record<string, string | null>; missing: number
+      /** equirectangular sky (scene axes), from the map's sky cube map */
+      sky: { width: number; height: number; rgba: Uint8Array } | null }
   | { type: 'error'; message: string }
   | {
       type: 'done'

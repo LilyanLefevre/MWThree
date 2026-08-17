@@ -1,6 +1,7 @@
 import {
   FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, extractWorldMesh, extractMapEnts, extractCollisionMesh,
-  extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, computePropLighting, parseVec3,
+  extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, extractSkyImage, computePropLighting, parseVec3,
+  parseIwiCube, cubeToEquirect,
 } from '@mwthree/iw5-core'
 import type { LoadedZone } from '@mwthree/iw5-core'
 import { openSource } from './sources'
@@ -93,7 +94,16 @@ async function buildTextures(zone: LoadedZone, propMaterials: Set<string>, iwd: 
       textures.push({ name, width: img.width, height: img.height, rgba: img.rgba, hasAlpha: false, normal: true })
     } catch { /* keep the flat normal */ }
   }
-  return { type: 'textures', textures, materialImages, materialNormals, missing }
+  let sky: TexturesMessage['sky'] = null
+  const skyName = extractSkyImage(zone)
+  if (skyName) {
+    try {
+      const data = await lib.readIwi(skyName)
+      const faces = data && parseIwiCube(data)
+      if (faces) sky = { width: 2048, height: 1024, rgba: cubeToEquirect(faces, 2048, 1024) }
+    } catch { /* keep the plain background */ }
+  }
+  return { type: 'textures', textures, materialImages, materialNormals, missing, sky }
 }
 
 self.onmessage = async (e: MessageEvent<MapRequest>) => {
