@@ -9,7 +9,10 @@ import { StaticModels } from './components/StaticModels'
 import { Sky } from './components/Sky'
 import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { MapInfo, MapWorld } from './types'
-import type { IwdSource, MapResponse } from './worker/protocol'
+import type { IwdSource, MapResponse, SpawnPoint } from './worker/protocol'
+import { SpawnMarkers } from './components/SpawnMarkers'
+import { Minimap } from './components/Minimap'
+import { mapDisplayName } from './mapNames'
 
 /** `values()` is missing from the DOM typings of the File System Access API. */
 const entries = (dir: FileSystemDirectoryHandle) => (dir as unknown as { values(): AsyncIterable<FileSystemHandle> }).values()
@@ -74,9 +77,16 @@ async function listIwd(root: FileSystemDirectoryHandle): Promise<IwdSource[]> {
   return out
 }
 
-/** Pick a deathmatch-ish spawn and convert it to scene coordinates (meters, Y-up). */
-function pickSpawn(world: MapWorld): { pos: [number, number, number]; yaw: number } {
-  const s = world.spawns.find(p => p.classname === 'mp_dm_spawn') ?? world.spawns.find(p => /tdm_spawn$/.test(p.classname)) ?? world.spawns[0]
+const wrap = (i: number, n: number) => (n ? ((i % n) + n) % n : 0)
+
+/** Spawns the player can teleport between: deathmatch spawns, else every spawn. */
+function teleportSpawns(world: MapWorld): SpawnPoint[] {
+  const dm = world.spawns.filter(p => p.classname === 'mp_dm_spawn')
+  return dm.length ? dm : world.spawns
+}
+
+/** Spawn point -> scene position (meters, Y-up) and camera yaw. */
+function spawnPose(s: SpawnPoint | undefined): { pos: [number, number, number]; yaw: number } {
   if (!s) return { pos: [0, 3, 0], yaw: 0 }
   const [x, y, z] = s.origin
   // game yaw (CCW from +X, Z-up) -> three.js camera yaw about +Y (camera looks down -Z)
@@ -93,6 +103,8 @@ function App() {
   const [world, setWorld] = useState<MapWorld | null>(null)
   const [fly, setFly] = useState(false)
   const [showCollision, setShowCollision] = useState(false)
+  const [showSpawns, setShowSpawns] = useState(false)
+  const [spawnIndex, setSpawnIndex] = useState(0)
   const [texturing, setTexturing] = useState(false)
   const worker = useRef<Worker | null>(null)
 
@@ -142,12 +154,19 @@ function App() {
   }, [runWorker])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.code === 'KeyC' && !e.repeat) setShowCollision(v => !v) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return
+      if (e.code === 'KeyC') setShowCollision(v => !v)
+      if (e.code === 'KeyO') setShowSpawns(v => !v)
+      if (e.code === 'KeyT') setSpawnIndex(i => i + (e.shiftKey ? -1 : 1))
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
-  const spawn = useMemo(() => (world ? pickSpawn(world) : null), [world])
+  const spawnList = useMemo(() => (world ? teleportSpawns(world) : []), [world])
+  useEffect(() => setSpawnIndex(0), [world?.fileName])
+  const spawn = useMemo(() => (world ? spawnPose(spawnList[wrap(spawnIndex, spawnList.length)]) : null), [world, spawnList, spawnIndex])
   const isLoading = loading !== null
 
   return (
@@ -166,12 +185,14 @@ function App() {
           <Physics gravity={[0, -20, 0]}>
             <WorldMesh world={world} showCollision={showCollision} />
             <StaticModels world={world} />
+            {showSpawns && <SpawnMarkers spawns={world.spawns} />}
             <Player spawn={spawn.pos} yaw={spawn.yaw} onFly={setFly} />
           </Physics>
         )}
       </Canvas>
 
       <FolderSelector onFolderSelected={onFolder} />
+      {world && <Minimap world={world} />}
 
       <div style={{
         position: 'absolute', top: 10, right: 10, zIndex: 100, background: 'rgba(0,0,0,0.75)', color: 'white',
@@ -182,7 +203,7 @@ function App() {
         {error && <div style={{ color: '#f77' }}>✗ {error}</div>}
         {world && !isLoading && (
           <div style={{ marginBottom: 8 }}>
-            <div style={{ color: '#6f6' }}>✓ {world.fileName}</div>
+            <div style={{ color: '#6f6' }}>✓ {mapDisplayName(world.fileName)} <span style={{ color: '#888' }}>({world.fileName})</span></div>
             <div>{(world.indices.length / 3).toLocaleString()} triangles · {world.stats.surfaces.toLocaleString()} surfaces</div>
             <div>{world.stats.entities.toLocaleString()} entités · {world.spawns.length} spawns</div>
             <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles){world.textures.length > 0 && ` · ${world.textures.filter(t => !t.normal).length} textures`}</div>
@@ -193,6 +214,7 @@ function App() {
                 : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms`}
             </div>
             <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes + ${world.collision.models.toLocaleString()} props (C = afficher)` : 'collision : mesh visible'}</div>
+            <div>spawn {spawnList.length ? wrap(spawnIndex, spawnList.length) + 1 : 0}/{spawnList.length} (T / Maj+T) · O = repères</div>
             <div style={{ color: '#ff6' }}>{fly ? 'Mode vol (V pour revenir)' : 'Marche (V = vol libre)'}</div>
           </div>
         )}
@@ -204,7 +226,7 @@ function App() {
             {mapInfo.maps.map(m => (
               <div key={m} onClick={() => !isLoading && loadMap(m)}
                 style={{ cursor: isLoading ? 'wait' : 'pointer', padding: '2px 4px', background: loading === m ? '#555' : 'transparent', borderRadius: 3 }}>
-                {m}
+                {mapDisplayName(m)} <span style={{ color: '#888' }}>{m}</span>
               </div>
             ))}
           </>
@@ -215,7 +237,7 @@ function App() {
         position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white',
         padding: '4px 12px', borderRadius: 5, zIndex: 100, fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
       }}>
-        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · V = vol libre · C = collision
+        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · V = vol libre · C = collision · T = spawn suivant · O = repères
       </div>
     </div>
   )
