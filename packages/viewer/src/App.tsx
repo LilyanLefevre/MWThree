@@ -192,7 +192,7 @@ function App() {
                 ? `chargé depuis le cache en ${world.stats.msTotal} ms`
                 : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms`}
             </div>
-            <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes (C = afficher)` : 'collision : mesh visible'}</div>
+            <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes + ${world.collision.models.toLocaleString()} props (C = afficher)` : 'collision : mesh visible'}</div>
             <div style={{ color: '#ff6' }}>{fly ? 'Mode vol (V pour revenir)' : 'Marche (V = vol libre)'}</div>
           </div>
         )}
