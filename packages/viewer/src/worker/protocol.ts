@@ -1,4 +1,4 @@
-import type { StaticModelBatch, MaterialGroup, Lightmap, Sun } from '@mwthree/iw5-core'
+import type { StaticModelBatch, MaterialGroup, Lightmap, Sun, Objective } from '@mwthree/iw5-core'
 
 /** Where to read the .iwd archives from: local files (folder picker) or URLs (dev server, HTTP Range). */
 export type IwdSource = { file: File } | { url: string }
@@ -62,6 +62,7 @@ export type MapResponse =
       collision: CollisionData | null
       staticModels: StaticModelData[]
       sun: Sun | null
+      objectives: Objective[]
       spawns: SpawnPoint[]
       stats: MapStats
     }
