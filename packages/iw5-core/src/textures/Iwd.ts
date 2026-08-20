@@ -43,10 +43,14 @@ export class IwdArchive {
   async read(name: string): Promise<Uint8Array | null> {
     const e = this.entries.get(name)
     if (!e) return null
-    const lh = await this.src.read(e.offset, 30)
-    const ldv = new DataView(lh.buffer, lh.byteOffset, lh.byteLength)
-    const start = e.offset + 30 + ldv.getUint16(26, true) + ldv.getUint16(28, true)
-    const data = await this.src.read(start, e.compSize)
+    // one read for the local header and the data: the local name/extra fields are usually as long as
+    // the central directory's, plus some slack; fall back to a second read when they are longer
+    const guess = 30 + e.name.length + 64
+    let chunk = await this.src.read(e.offset, Math.min(guess + e.compSize, this.src.size - e.offset))
+    const ldv = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+    const skip = 30 + ldv.getUint16(26, true) + ldv.getUint16(28, true)
+    if (skip + e.compSize > chunk.length) chunk = await this.src.read(e.offset, skip + e.compSize)
+    const data = chunk.subarray(skip, skip + e.compSize)
     if (e.method === 0) return data
     if (e.method === 8) return pako.inflateRaw(data)
     throw new Error(`unsupported zip method ${e.method} for ${name}`)
