@@ -120,7 +120,7 @@ function App() {
       if (m.type === 'progress') setStage(m.stage)
       else if (m.type === 'error') { setError(m.message); setLoading(null); w.terminate() }
       else if (m.type === 'textures') {
-        setWorld(prev => prev && { ...prev, textures: m.textures, materialImages: m.materialImages, materialNormals: m.materialNormals, sky: m.sky, stats: { ...prev.stats, textures: m.textures.length } })
+        setWorld(prev => prev && { ...prev, textures: m.textures, materialImages: m.materialImages, materialNormals: m.materialNormals, sky: m.sky, stats: { ...prev.stats, textures: m.textures.length, msTextures: m.ms } })
         setStage(''); setTexturing(false); w.terminate()
       } else {
         setWorld({ ...m, materialImages: {}, materialNormals: {}, textures: [], sky: null }); setLoading(null)
@@ -215,7 +215,7 @@ function App() {
             <div style={{ color: '#aaa' }}>
               {world.stats.fromCache
                 ? `chargé depuis le cache en ${world.stats.msTotal} ms`
-                : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms`}
+                : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms${world.stats.msTextures ? ` · textures ${world.stats.msTextures} ms` : ''}`}
             </div>
             <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes + ${world.collision.models.toLocaleString()} props (C = afficher)` : 'collision : mesh visible'}</div>
             <div>spawn {spawnList.length ? wrap(spawnIndex, spawnList.length) + 1 : 0}/{spawnList.length} (T / Maj+T) · O = repères · B = objectifs ({world.objectives.length})</div>
