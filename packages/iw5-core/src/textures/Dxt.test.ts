@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { decodeDxt } from './Dxt.js'
-import { parseIwi } from './Iwi.js'
+import { iwiCompressedMips, parseIwi } from './Iwi.js'
 
 describe('decodeDxt', () => {
   it('decodes a solid DXT1 block', () => {
@@ -34,5 +34,23 @@ describe('parseIwi', () => {
     expect([top.rgba[3], top.rgba[7], top.rgba[11], top.rgba[15]]).toEqual([1, 2, 3, 4])
     const small = parseIwi(file, 1)
     expect([small.width, small.rgba[3]]).toEqual([1, 7])
+  })
+})
+
+describe('iwiCompressedMips', () => {
+  it('returns the S3TC mip chain from the chosen level down to 1x1', () => {
+    // 8x8 DXT1: levels 8x8 (4 blocks), 4x4, 2x2, 1x1 (1 block each), stored smallest first
+    const header = new Uint8Array(32)
+    header.set([0x49, 0x57, 0x69, 8], 0)
+    header[8] = 0x0b
+    header[10] = 8; header[12] = 8; header[14] = 1
+    const block = (v: number) => [v, 0, 0, 0, 0, 0, 0, 0] // c0 > c1: opaque
+    const body = [...block(1), ...block(2), ...block(3), ...block(4), ...block(4), ...block(4), ...block(4)]
+    const m = iwiCompressedMips(new Uint8Array([...header, ...body]), 4)!
+    expect(m.kind).toBe('dxt1')
+    expect([m.width, m.height]).toEqual([4, 4])
+    expect(m.mips.map(l => l.width)).toEqual([4, 2, 1])
+    expect(m.mips[0].data[0]).toBe(3)
+    expect(m.hasAlpha).toBe(false)
   })
 })

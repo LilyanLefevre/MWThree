@@ -78,6 +78,14 @@ async function listIwd(root: FileSystemDirectoryHandle): Promise<IwdSource[]> {
   return out
 }
 
+/** Whether the GPU takes S3TC (DXT) textures, sRGB included: the game's images can then skip decoding. */
+const S3TC = (() => {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2')
+    return !!gl?.getExtension('WEBGL_compressed_texture_s3tc') && !!gl.getExtension('WEBGL_compressed_texture_s3tc_srgb')
+  } catch { return false }
+})()
+
 const wrap = (i: number, n: number) => (n ? ((i % n) + n) % n : 0)
 
 /** Spawns the player can teleport between: deathmatch spawns, else every spawn. */
@@ -130,7 +138,7 @@ function App() {
       }
     }
     w.onerror = ev => { setError(ev.message); setLoading(null) }
-    w.postMessage({ buffer, fileName, iwd }, [buffer])
+    w.postMessage({ buffer, fileName, iwd, s3tc: S3TC }, [buffer])
   }, [])
 
   const onFolder = useCallback(async (fh: FileSystemDirectoryHandle) => {
