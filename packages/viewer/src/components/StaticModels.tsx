@@ -88,7 +88,7 @@ export function StaticModels({ world }: { world: MapWorld }) {
       for (const g of m.far?.groups ?? []) names.add(g.material)
     }
     return buildMaterials(world, names)
-  }, [world.staticModels, world.materialImages, world.textures])
+  }, [world])
   useEffect(() => () => { built.map.forEach(m => m.dispose()); built.textures.forEach(t => t.dispose()) }, [built])
   return <>{world.staticModels.map((m, i) => <Batch key={`${m.name}-${i}`} data={m} mats={built.map} />)}</>
 }

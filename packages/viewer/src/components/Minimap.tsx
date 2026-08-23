@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { MapWorld } from '../types'
 import { playerState } from '../playerState'
-import { spawnColor } from './SpawnMarkers'
-import { objectiveColor, objectiveText } from './Objectives'
+import { objectiveColor, objectiveText, spawnColor } from '../markers'
 
 const SIZE = 220
 

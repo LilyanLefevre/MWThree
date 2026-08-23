@@ -19,9 +19,8 @@ export function WorldMesh({ world, showCollision }: { world: MapWorld; showColli
   }, [world.positions, world.normals, world.uvs, world.lmUvs, world.vertexColors, world.indices, world.groups])
   useEffect(() => () => geometry.dispose(), [geometry])
 
-  const materials = useMemo(() => {
-    return buildWorldMaterials(world)
-  }, [world.groups, world.materialImages, world.textures, world.lightmaps])
+  // rebuilt when the textures arrive (the world object is replaced then)
+  const materials = useMemo(() => buildWorldMaterials(world), [world])
   useEffect(() => () => { materials.list.forEach(m => m.dispose()); materials.textures.forEach(t => t.dispose()) }, [materials])
 
   const collisionGeometry = useMemo(() => {
