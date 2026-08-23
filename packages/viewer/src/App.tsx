@@ -251,7 +251,7 @@ function App() {
         position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white',
         padding: '4px 12px', borderRadius: 5, zIndex: 100, fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
       }}>
-        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · V = vol libre · C = collision · T = spawn suivant · O = repères · B = objectifs
+        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · Ctrl = accroupi · V = vol libre · C = collision · T = spawn suivant · O = repères · B = objectifs
       </div>
     </div>
   )

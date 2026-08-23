@@ -9,6 +9,8 @@ import { playerState } from '../playerState'
 const RADIUS = 0.35
 const HALF = 0.45 // capsule half-height (cylinder part)
 const EYE = 0.7 // eye above capsule center
+const CROUCH_EYE = 0.05 // eye above capsule center when crouched (Ctrl)
+const CROUCH_SPEED = 0.45
 const RUN = 4.8
 const FLY = 14
 const JUMP = 6.5
@@ -32,6 +34,7 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
   const controls = useRef<{ isLocked: boolean } | null>(null)
   const fly = useRef(false)
   const dir = useRef(new THREE.Vector3())
+  const eye = useRef(EYE)
 
   useEffect(() => {
     camera.position.set(spawn[0], spawn[1] + EYE, spawn[2])
@@ -69,7 +72,10 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
     if (!b) return
     if (!fly.current) {
       const t0 = b.translation()
-      camera.position.set(t0.x, t0.y + EYE, t0.z)
+      // smooth crouch transition
+      const target = keys.ControlLeft || keys.ControlRight ? CROUCH_EYE : EYE
+      eye.current += (target - eye.current) * Math.min(1, dt * 12)
+      camera.position.set(t0.x, t0.y + eye.current, t0.z)
     }
     playerState.x = camera.position.x; playerState.y = camera.position.y; playerState.z = camera.position.z
     playerState.yaw = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y
@@ -100,7 +106,8 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
     const ray = new rapier.Ray({ x: t.x, y: t.y, z: t.z }, { x: 0, y: -1, z: 0 })
     const hit = world.castRay(ray, HALF + RADIUS + 0.12, true, undefined, undefined, undefined, b)
     const grounded = !!hit
-    const speed = RUN * (keys.ShiftLeft ? 1.5 : 1)
+    const crouched = keys.ControlLeft || keys.ControlRight
+    const speed = RUN * (crouched ? CROUCH_SPEED : keys.ShiftLeft ? 1.5 : 1)
     let vy = lin.y
     if (grounded && keys.Space && lin.y <= 0.5) vy = JUMP
     b.setLinvel({ x: wish.x * speed, y: vy, z: wish.z * speed }, true)
