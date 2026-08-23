@@ -64,7 +64,6 @@ export interface LoadedZone {
   assets: LoadedAsset[]
   blockUsed: number[]
   bytesRead: number
-  diagnostics: string[]
   /** resolve a leftover {$ref} (alias or interior pointer) */
   resolveRef(ref: number): { array: any; index: number; value: any } | null
 }
@@ -122,7 +121,6 @@ export class ZoneLoader {
   private stack: number[] = []
   private registry = new Map<number, any>()
   scriptStrings: string[] = []
-  diagnostics: string[] = []
   /** reusable arrays: [start, byteLength, value, elemSize] for interior-pointer resolution */
   intervals: [number, number, any, number][] = []
   stats = { inlineAssetPtrs: 0, unresolvedRefs: 0 }
@@ -217,7 +215,7 @@ export class ZoneLoader {
     }
     return {
       header: { size, externalSize, blockSizes }, scriptStrings: this.scriptStrings, assets,
-      blockUsed: [...this.blockOff], bytesRead: this.pos, diagnostics: this.diagnostics,
+      blockUsed: [...this.blockOff], bytesRead: this.pos,
       resolveRef: (r: number) => this.resolveRef(r),
     }
   }
@@ -443,12 +441,11 @@ export class ZoneLoader {
   private processStruct(scopes: Scope[], typeName: string, obj: any) {
     const def = schema.structs[typeName]
     if (def.kind === 'union') return this.processUnion(scopes, typeName, obj)
-    for (const m of this.memberOrder(typeName)) this.processMember(scopes, def, m, obj)
+    for (const m of this.memberOrder(typeName)) this.processMember(scopes, m, obj)
   }
 
   private processUnion(scopes: Scope[], typeName: string, obj: any) {
     const def = schema.structs[typeName]
-    const top = scopes[scopes.length - 1]
     let chosen: Member | null = null
     let fallback: Member | null = null
     for (const m of def.members) {
@@ -461,16 +458,15 @@ export class ZoneLoader {
     }
     const m = chosen ?? fallback
     if (!m) return
-    void top
-    this.processMember(scopes, def, m, obj, true)
+    this.processMember(scopes, m, obj, true)
   }
 
   private memberLoadable(m: Member): boolean {
     return m.ptr > 0 || (!!m.base.struct && hasPtr(m.base.struct))
   }
 
-  private processMember(scopes: Scope[], def: StructDef, m: Member, obj: any, skipCondition = false) {
-    try { this.processMember0(scopes, def, m, obj, skipCondition) } catch (e: any) {
+  private processMember(scopes: Scope[], m: Member, obj: any, skipCondition = false) {
+    try { this.processMember0(scopes, m, obj, skipCondition) } catch (e: any) {
       if (e && typeof e.message === 'string' && !e.$ctx) e.message += `\n  at ${scopes[scopes.length - 1].type}.${m.name} (pos=${this.pos})`
       else if (e && typeof e.message === 'string') e.message += `\n  at ${scopes[scopes.length - 1].type}.${m.name}`
       if (e) e.$ctx = true
@@ -478,10 +474,8 @@ export class ZoneLoader {
     }
   }
 
-  private processMember0(scopes: Scope[], def: StructDef, m: Member, obj: any, skipCondition = false) {
+  private processMember0(scopes: Scope[], m: Member, obj: any, skipCondition = false) {
     if (!this.memberLoadable(m)) return
-    const typeName = scopes[scopes.length - 1].type
-    void def; void typeName
     if (m.anonymous && m.base.struct && m.ptr === 0 && m.dims.length === 0) {
       // anonymous inline struct/union: fields live flattened in obj
       this.descendInline(scopes, m, obj, m.base.struct)
