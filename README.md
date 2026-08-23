@@ -4,6 +4,20 @@ Reconstruit un Call of Duty MW3 (2011) jouable dans le navigateur en parsant les
 
 ⚠️ **Usage strictement local** — aucun asset n'est redistribué. L'utilisateur doit pointer vers sa propre installation MW3.
 
+![Dome dans le viewer](docs/images/screens/dome-hero.jpg)
+
+## Aperçu (map `mp_dome`)
+
+| Visite des spawns (`T`) | Intérieur, lightmaps et ombres |
+|---|---|
+| ![Visite des spawns](docs/images/screens/dome-tour.gif) | ![Intérieur](docs/images/screens/dome-interior.jpg) |
+| **Objectifs (`B`) et mini-carte** | **Collision (`C`) : brushes + props** |
+| ![Objectifs](docs/images/screens/dome-objectives.jpg) | ![Collision](docs/images/screens/dome-collision.jpg) |
+
+Ce qui est fait : géométrie du monde, props et entités (véhicules, caisses…), textures et normal maps lues dans les `.iwd`,
+lightmaps et soleil de la map, ciel, collision (brushes + props) avec déplacement FPS, objectifs des modes de jeu, mini-carte,
+cache des maps décodées. Détails techniques et schémas : [`docs/`](docs/README.md).
+
 ---
 
 ## Prérequis
