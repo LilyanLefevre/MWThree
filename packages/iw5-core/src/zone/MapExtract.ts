@@ -473,3 +473,39 @@ export function extractObjectives(entities: Entity[]): Objective[] {
   }
   return out
 }
+
+// ---------------------------------------------------------------- triggers
+
+export interface TriggerVolume {
+  classname: string
+  targetname?: string
+  /** axis-aligned boxes in game units, world space (hull bounds are relative to the entity origin; the slabs that cut them are not applied) */
+  boxes: { center: [number, number, number]; half: [number, number, number] }[]
+}
+
+/** Brush triggers (`model "?N"`): the hulls of trigger model N in MapEnts.trigger. */
+export function extractTriggers(zone: LoadedZone, entities: Entity[]): TriggerVolume[] {
+  const clip = zone.assets.find(a => a.typeName === 'clipMap_t')?.value
+  const me = resolveVal(zone, clip?.mapEnts)
+  const trig = me?.trigger
+  const models = resolveVal(zone, trig?.models), hulls = resolveVal(zone, trig?.hulls)
+  if (!models || !hulls) return []
+  const at = (arr: any, i: number) => (arr instanceof PlainArray ? arr.get(i) : arr[i])
+  const out: TriggerVolume[] = []
+  for (const e of entities) {
+    const m = /^\?(\d+)$/.exec(e.model ?? '')
+    if (!m) continue
+    const idx = Number(m[1])
+    if (idx >= (trig.count ?? 0)) continue
+    const model = at(models, idx)
+    const o = parseVec3(e.origin) ?? [0, 0, 0]
+    const boxes: TriggerVolume['boxes'] = []
+    for (let h = 0; h < model.hullCount; h++) {
+      const hull = at(hulls, model.firstHull + h)
+      const b = hull.bounds
+      boxes.push({ center: [o[0] + b.midPoint.x, o[1] + b.midPoint.y, o[2] + b.midPoint.z], half: [b.halfSize.x, b.halfSize.y, b.halfSize.z] })
+    }
+    if (boxes.length) out.push({ classname: e.classname ?? '', targetname: e.targetname, boxes })
+  }
+  return out
+}

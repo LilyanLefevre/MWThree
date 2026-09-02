@@ -14,6 +14,7 @@ import { SpawnMarkers } from './components/SpawnMarkers'
 import { Minimap } from './components/Minimap'
 import { Objectives } from './components/Objectives'
 import { RenderStats } from './components/RenderStats'
+import { Triggers } from './components/Triggers'
 import { mapDisplayName } from './mapNames'
 
 /** `values()` is missing from the DOM typings of the File System Access API. */
@@ -115,6 +116,7 @@ function App() {
   const [showCollision, setShowCollision] = useState(false)
   const [showSpawns, setShowSpawns] = useState(false)
   const [showObjectives, setShowObjectives] = useState(true)
+  const [showTriggers, setShowTriggers] = useState(false)
   const [spawnIndex, setSpawnIndex] = useState(0)
   const [texturing, setTexturing] = useState(false)
   const worker = useRef<Worker | null>(null)
@@ -170,6 +172,7 @@ function App() {
       if (e.code === 'KeyC') setShowCollision(v => !v)
       if (e.code === 'KeyO') setShowSpawns(v => !v)
       if (e.code === 'KeyB') setShowObjectives(v => !v)
+      if (e.code === 'KeyG') setShowTriggers(v => !v)
       if (e.code === 'KeyT') setSpawnIndex(i => i + (e.shiftKey ? -1 : 1))
     }
     document.addEventListener('keydown', onKey)
@@ -200,6 +203,7 @@ function App() {
             <StaticModels world={world} />
             {showSpawns && <SpawnMarkers spawns={world.spawns} />}
             {showObjectives && <Objectives objectives={world.objectives} />}
+            {showTriggers && <Triggers triggers={world.triggers} />}
             <Player spawn={spawn.pos} yaw={spawn.yaw} onFly={setFly} />
           </Physics>
         )}
@@ -228,7 +232,7 @@ function App() {
                 : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms${world.stats.msTextures ? ` · textures ${world.stats.msTextures} ms` : ''}`}
             </div>
             <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes + ${world.collision.models.toLocaleString()} props (C = afficher)` : 'collision : mesh visible'}</div>
-            <div>spawn {spawnList.length ? wrap(spawnIndex, spawnList.length) + 1 : 0}/{spawnList.length} (T / Maj+T) · O = repères · B = objectifs ({world.objectives.length})</div>
+            <div>spawn {spawnList.length ? wrap(spawnIndex, spawnList.length) + 1 : 0}/{spawnList.length} (T / Maj+T) · O = repères · B = objectifs ({world.objectives.length}) · G = triggers ({world.triggers.length})</div>
             <div style={{ color: '#ff6' }}>{fly ? 'Mode vol (V pour revenir)' : 'Marche (V = vol libre)'}</div>
           </div>
         )}
@@ -251,7 +255,7 @@ function App() {
         position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white',
         padding: '4px 12px', borderRadius: 5, zIndex: 100, fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
       }}>
-        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · Ctrl = accroupi · V = vol libre · C = collision · T = spawn suivant · O = repères · B = objectifs
+        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · Ctrl = accroupi · V = vol libre · C = collision · T = spawn suivant · O = repères · B = objectifs · G = triggers
       </div>
     </div>
   )

@@ -58,6 +58,10 @@ Chaque placement donne une origine, une base orthonormée (`axis`, 3×3) et une 
 
 `extractObjectives` repère dans les entités les drapeaux de domination (`targetname = flag_primary`, lettre dans `script_label`, rayon/hauteur de capture), les sites de bombe (`bombzone`), les drapeaux CTF (`ctf_flag_allies/axis`), les points de QG (`hq_hardpoint`) et le sabotage. Le viewer les affiche en étiquettes toujours visibles et sur la mini-carte.
 
+## Triggers
+
+Les entités `trigger_*` avec un modèle `?N` désignent le trigger N de `MapEnts.trigger` : une liste de *hulls* (boîtes relatives à l'origine de l'entité, éventuellement découpées par des *slabs*). `extractTriggers` en donne les boîtes en coordonnées monde ; touche **G** pour les afficher (`mp_dome` : 29 triggers).
+
 ## Joueur et collision
 
 ```mermaid

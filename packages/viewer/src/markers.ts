@@ -23,3 +23,10 @@ export function objectiveText(o: Objective): string {
   if (o.kind === 'sabotage') return 'SAB'
   return o.label
 }
+
+export function triggerColor(classname: string): string {
+  if (classname === 'trigger_hurt') return '#ff3b3b'
+  if (classname === 'trigger_use_touch') return '#ff9f1a'
+  if (classname === 'trigger_radius') return '#2ad4ff'
+  return '#ffe14d'
+}
