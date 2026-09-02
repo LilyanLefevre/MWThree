@@ -117,6 +117,7 @@ function App() {
   const [showSpawns, setShowSpawns] = useState(false)
   const [showObjectives, setShowObjectives] = useState(true)
   const [showTriggers, setShowTriggers] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [spawnIndex, setSpawnIndex] = useState(0)
   const [texturing, setTexturing] = useState(false)
   const worker = useRef<Worker | null>(null)
@@ -173,6 +174,7 @@ function App() {
       if (e.code === 'KeyO') setShowSpawns(v => !v)
       if (e.code === 'KeyB') setShowObjectives(v => !v)
       if (e.code === 'KeyG') setShowTriggers(v => !v)
+      if (e.code === 'KeyH') setShowHelp(v => !v)
       if (e.code === 'KeyT') setSpawnIndex(i => i + (e.shiftKey ? -1 : 1))
     }
     document.addEventListener('keydown', onKey)
@@ -211,6 +213,19 @@ function App() {
 
       <FolderSelector onFolderSelected={onFolder} />
       {world && <Minimap world={world} />}
+      {showHelp && (
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 200, background: 'rgba(0,0,0,0.85)',
+          color: 'white', padding: '14px 20px', borderRadius: 6, fontFamily: 'monospace', fontSize: 13, lineHeight: 1.7, pointerEvents: 'none',
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: 6 }}>Commandes</div>
+          {[
+            ['Clic', 'capturer la souris (Échap pour la libérer)'], ['WASD / ZQSD', 'se déplacer'], ['Espace', 'sauter (monter en vol)'],
+            ['Maj', 'sprint'], ['Ctrl', 'accroupi (descendre en vol)'], ['V', 'vol libre / marche'], ['T / Maj+T', 'spawn suivant / précédent'],
+            ['C', 'afficher la collision'], ['O', 'repères de spawns'], ['B', 'objectifs des modes de jeu'], ['G', 'volumes des triggers'], ['H', 'cette aide'],
+          ].map(([k, v]) => <div key={k}><span style={{ color: '#ffd84d', display: 'inline-block', width: 120 }}>{k}</span>{v}</div>)}
+        </div>
+      )}
 
       <div style={{
         position: 'absolute', top: 10, right: 10, zIndex: 100, background: 'rgba(0,0,0,0.75)', color: 'white',
@@ -231,8 +246,18 @@ function App() {
                 ? `chargé depuis le cache en ${world.stats.msTotal} ms`
                 : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms${world.stats.msTextures ? ` · textures ${world.stats.msTextures} ms` : ''}`}
             </div>
-            <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes + ${world.collision.models.toLocaleString()} props (C = afficher)` : 'collision : mesh visible'}</div>
-            <div>spawn {spawnList.length ? wrap(spawnIndex, spawnList.length) + 1 : 0}/{spawnList.length} (T / Maj+T) · O = repères · B = objectifs ({world.objectives.length}) · G = triggers ({world.triggers.length})</div>
+            <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes + ${world.collision.models.toLocaleString()} props` : 'collision : mesh visible'}</div>
+            <div style={{ marginTop: 4 }}>
+              {[
+                ['C', 'collision', showCollision],
+                ['O', `spawns (${world.spawns.length})`, showSpawns],
+                ['B', `objectifs (${world.objectives.length})`, showObjectives],
+                ['G', `triggers (${world.triggers.length})`, showTriggers],
+              ].map(([k, label, on]) => (
+                <span key={k as string} style={{ marginRight: 8, color: on ? '#fff' : '#777' }}>{on ? '●' : '○'} {k} {label}</span>
+              ))}
+            </div>
+            <div>spawn {spawnList.length ? wrap(spawnIndex, spawnList.length) + 1 : 0}/{spawnList.length} (T / Maj+T)</div>
             <div style={{ color: '#ff6' }}>{fly ? 'Mode vol (V pour revenir)' : 'Marche (V = vol libre)'}</div>
           </div>
         )}
@@ -255,7 +280,7 @@ function App() {
         position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white',
         padding: '4px 12px', borderRadius: 5, zIndex: 100, fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
       }}>
-        Clique sur le canvas pour capturer la souris · WASD/ZQSD · Espace · Maj · Ctrl = accroupi · V = vol libre · C = collision · T = spawn suivant · O = repères · B = objectifs · G = triggers
+        Clic = capturer la souris · WASD/ZQSD · Espace saut · Maj sprint · Ctrl accroupi · V vol libre · H aide
       </div>
     </div>
   )
