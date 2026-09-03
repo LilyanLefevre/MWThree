@@ -1,6 +1,7 @@
 // High-level extraction of renderable / simulatable data from a loaded zone.
 import type { LoadedZone } from './ZoneLoader.js'
 import { PlainArray } from './ZoneLoader.js'
+import { convexFaces, type Plane } from './Convex.js'
 
 /** Inches (game units) to meters. */
 export const UNIT_SCALE = 0.0254
@@ -481,6 +482,8 @@ export interface TriggerVolume {
   targetname?: string
   /** axis-aligned boxes in game units, world space (hull bounds are relative to the entity origin; the slabs that cut them are not applied) */
   boxes: { center: [number, number, number]; half: [number, number, number] }[]
+  /** outline of the exact hulls (bounds cut by their slabs): segments x1 y1 z1 x2 y2 z2, game units, world space */
+  edges: number[]
 }
 
 /** Brush triggers (`model "?N"`): the hulls of trigger model N in MapEnts.trigger. */
@@ -488,7 +491,7 @@ export function extractTriggers(zone: LoadedZone, entities: Entity[]): TriggerVo
   const clip = zone.assets.find(a => a.typeName === 'clipMap_t')?.value
   const me = resolveVal(zone, clip?.mapEnts)
   const trig = me?.trigger
-  const models = resolveVal(zone, trig?.models), hulls = resolveVal(zone, trig?.hulls)
+  const models = resolveVal(zone, trig?.models), hulls = resolveVal(zone, trig?.hulls), slabs = resolveVal(zone, trig?.slabs)
   if (!models || !hulls) return []
   const at = (arr: any, i: number) => (arr instanceof PlainArray ? arr.get(i) : arr[i])
   const out: TriggerVolume[] = []
@@ -500,12 +503,30 @@ export function extractTriggers(zone: LoadedZone, entities: Entity[]): TriggerVo
     const model = at(models, idx)
     const o = parseVec3(e.origin) ?? [0, 0, 0]
     const boxes: TriggerVolume['boxes'] = []
+    const edges: number[] = []
     for (let h = 0; h < model.hullCount; h++) {
       const hull = at(hulls, model.firstHull + h)
       const b = hull.bounds
       boxes.push({ center: [o[0] + b.midPoint.x, o[1] + b.midPoint.y, o[2] + b.midPoint.z], half: [b.halfSize.x, b.halfSize.y, b.halfSize.z] })
+      // exact hull: the bounds intersected with each slab |dir·p - midPoint| <= halfSize (local coordinates)
+      const m = b.midPoint, hs = b.halfSize
+      const planes: Plane[] = [
+        [1, 0, 0, m.x + hs.x], [-1, 0, 0, -(m.x - hs.x)], [0, 1, 0, m.y + hs.y],
+        [0, -1, 0, -(m.y - hs.y)], [0, 0, 1, m.z + hs.z], [0, 0, -1, -(m.z - hs.z)],
+      ]
+      for (let s = 0; slabs && s < hull.slabCount; s++) {
+        const sl = at(slabs, hull.firstSlab + s)
+        const [dx, dy, dz] = [sl.dir[0], sl.dir[1], sl.dir[2]]
+        planes.push([dx, dy, dz, sl.midPoint + sl.halfSize], [-dx, -dy, -dz, -(sl.midPoint - sl.halfSize)])
+      }
+      for (const poly of convexFaces(planes)) {
+        for (let k = 0; k < poly.length; k++) {
+          const p = poly[k], q = poly[(k + 1) % poly.length]
+          edges.push(o[0] + p[0], o[1] + p[1], o[2] + p[2], o[0] + q[0], o[1] + q[1], o[2] + q[2])
+        }
+      }
     }
-    if (boxes.length) out.push({ classname: e.classname ?? '', targetname: e.targetname, boxes })
+    if (boxes.length) out.push({ classname: e.classname ?? '', targetname: e.targetname, boxes, edges })
   }
   return out
 }
