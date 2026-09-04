@@ -1,6 +1,19 @@
 // Minimal random-access ZIP reader for .iwd archives (deflate or stored entries).
 import * as pako from 'pako'
 
+/** Raw deflate: the platform's native decoder when there is one (browsers), pako otherwise. */
+async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  if (typeof DecompressionStream !== 'undefined' && typeof Blob !== 'undefined') {
+    try {
+      const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
+      return new Uint8Array(await new Response(stream).arrayBuffer())
+    } catch {
+      // fall back to pako
+    }
+  }
+  return pako.inflateRaw(data)
+}
+
 export interface RandomAccess {
   size: number
   read(offset: number, length: number): Promise<Uint8Array>
@@ -52,7 +65,7 @@ export class IwdArchive {
     if (skip + e.compSize > chunk.length) chunk = await this.src.read(e.offset, skip + e.compSize)
     const data = chunk.subarray(skip, skip + e.compSize)
     if (e.method === 0) return data
-    if (e.method === 8) return pako.inflateRaw(data)
+    if (e.method === 8) return inflateRaw(data)
     throw new Error(`unsupported zip method ${e.method} for ${name}`)
   }
 }
