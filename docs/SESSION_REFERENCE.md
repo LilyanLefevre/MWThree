@@ -31,7 +31,7 @@ npm run dev                          # http://localhost:5173
 
 ### Sur le PC de test (Windows, `ssh pc`)
 
-Clone dans `C:\Users\Lilyan\mwthree` (avec `inputs/`). Serveur : `ssh pc "cd mwthree\packages\viewer && npx vite --host 0.0.0.0 --port 5173"`,
+Clone dans `C:\Users\Lilyan\mwthree` (avec `inputs/`). Serveur : `ssh pc "cd mwthree\packages\viewer && npx vite --host 0.0.0.0 --port 5173"` lancé lui aussi via `Invoke-CimMethod Win32_Process Create` pour survivre à la session SSH (log dans `C:\Users\Lilyan\vite.log`),
 ouvert depuis le Mac sur `http://192.168.1.207:5173/?dev=dome&free=1`. Playwright tourne sur le PC (vrai GPU, fps représentatifs) ;
 lancer `playwright-cli -s=mw3 open …` via `Invoke-CimMethod Win32_Process Create`, sinon le navigateur meurt avec la session SSH.
 Premier chargement de `mp_dome` mesuré sur le PC (dev) : décompression 947 ms, lecture 342 ms, textures 925 ms ; 60 fps (vsync).
