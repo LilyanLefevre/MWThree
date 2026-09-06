@@ -12,7 +12,7 @@ function devInputs(): Plugin {
     configureServer(server) {
       server.middlewares.use('/__inputs-list/main', (_req, res) => {
         res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify(existsSync(join(root, 'main')) ? readdirSync(join(root, 'main')).filter(n => n.endsWith('.iwd')) : []))
+        res.end(JSON.stringify(existsSync(join(root, 'main')) ? readdirSync(join(root, 'main')).filter(n => n.endsWith('.iwd') && !n.startsWith('._')) : []))
       })
       server.middlewares.use('/__inputs', (req, res, next) => {
         const rel = normalize(decodeURIComponent((req.url ?? '/').split('?')[0])).replace(/^(\.\.[/\\])+/, '')
