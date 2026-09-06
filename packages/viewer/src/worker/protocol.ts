@@ -50,8 +50,8 @@ export interface MapStats {
 export interface CollisionData { positions: Float32Array; indices: Uint32Array; brushes: number; models: number }
 
 export type StaticModelData = Pick<StaticModelBatch, 'name' | 'positions' | 'normals' | 'uvs' | 'colors' | 'indices' | 'groups' | 'matrices' | 'far' | 'farDistance'> & {
-  /** RGB light multiplier per instance, sampled from the world lightmap under it */
-  instanceColors: Float32Array
+  /** light grid sample per instance (PROP_LIGHT_STRIDE floats: ambient cube + sun weight) */
+  instanceLight: Float32Array
 }
 
 export type MapResponse =

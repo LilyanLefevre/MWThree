@@ -96,22 +96,27 @@ chaînes-constantes du moteur. Identifiés par les valeurs : `1668 classname`, `
 - Repère jeu : Z vers le haut, unités = pouces. Scène : `(x, z, −y) × 0.0254` (mètres, Y vers le haut).
 - `GfxWorld` fait 640 octets ; le premier mot (`name`) est typiquement une **référence** vers une chaîne déjà chargée.
 
-### Light grid (`GfxWorld.lightGrid`) — décodage partiel, non utilisé
+### Light grid (`GfxWorld.lightGrid`) — décodé et utilisé pour les props
 
-Sondes de lumière du moteur pour les objets dynamiques/props. Observé sur `mp_dome` :
-- `mins` / `maxs` en coordonnées de grille : x 3830–4266, y 3924–4381, z 2040–2070. Hypothèse cohérente avec la map :
-  cellule = `floor(x / 32) + 4096`, `floor(y / 32) + 4096`, `floor(z / 64) + 2048` (couvre aussi les palettes d'airdrop à x ≈ −8256).
-- `rowAxis = 0`, `colAxis = 1` ; `rowDataStart[r]` (une entrée par rangée x, `0xFFFF` = rangée vide) est un offset **en mots de 4 octets** dans `rawRowData`.
-- En-tête de rangée (12 octets) : `colStart u16`, `colCount u16`, `zStart u16`, `zCount u16`, `firstEntry u32` (absolus), suivi de
-  **runs de colonnes** : `cols u8`, `numZ u8`, puis `zOffset u8` seulement si `numZ > 0`. Chaque colonne d'un run a `numZ` entrées
-  consécutives à partir de `z = zStart + zOffset`. **Vérifié** : sur toutes les rangées de `mp_dome`, Σ cols = `colCount` et
-  Σ cols × numZ = `firstEntry` de la rangée suivante − `firstEntry` (ex. rangée 282 : 162 colonnes, 1 384 entrées).
-- `entries[i]` = `{ colorsIndex, primaryLightIndex, needsTrace }` ; `colors[k].rgb[56][3]` = 56 échantillons RGB par sonde
-  (valeurs lisses, plausibles : sonde au soleil ≈ 146 126 100).
-- **Non résolu** : en prenant la sonde de la cellule de chaque prop (taille 32/32/64 + décalage 4096/4096/2048, ordre colonne- ou
-  z-majeur), la luminosité moyenne obtenue ne corrèle pas (r ≈ 0) avec le lightmap du sol sous le prop. Soit la conversion
-  position → cellule est fausse, soit les 56 échantillons ne sont pas une simple irradiance. Les props restent donc éclairés par le
-  lightmap du sol sous eux (`computePropLighting`).
+Sondes de lumière du moteur pour les modèles. La logique de lookup est reprise du renderer IW3 décompilé
+(KisakCOD, `rb_light.cpp` : `R_LightGridLookup`, `R_GetLightGridSampleEntryQuad`, `R_GetLightingAtPoint`) ; elle est
+identique en IW5 (`LightGrid.ts`).
+- Cellule : `pos = (floor(v) + 0x20000) >> 5` en x/y, `>> 6` en z (32 × 32 × 64 unités) ; interpolation trilinéaire sur 8 coins.
+- `rowDataStart[pos[rowAxis] − mins[rowAxis]]` (`0xFFFF` = rangée vide) = offset **en mots de 4 octets** dans `rawRowData`.
+- En-tête de rangée (12 octets) : `colStart u16`, `colCount u16`, `zStart u16`, `zCount u16`, `firstEntry u32`, puis des
+  **runs** `cols u8`, `numZ u8`, et si `numZ > 0` un `baseZ` sur 1 octet (2 si `zCount > 255`). Chaque colonne d'un run a `numZ`
+  entrées à partir de `z = zStart + baseZ`. Vérifié : Σ cols = `colCount`, Σ cols × numZ = écart des `firstEntry`.
+- `entries[i]` (4 octets) = `colorsIndex u16`, `primaryLightIndex u8`, `needsTrace u8` (bits par coin : vérifier la visibilité
+  par un trace, ignoré ici).
+- **Le soleil n'est pas dans les couleurs.** `primaryLightIndex == lastSunPrimaryLightIndex` (ou 255) signifie « ce coin voit le
+  soleil », 0 « à l'ombre » ; le moteur ajoute `sunColor × poids × 0,5` à l'ambiant. C'est pour ça que la moyenne des couleurs
+  ne corrélait pas avec le lightmap du sol (essai précédent, r ≈ 0).
+- `colors[k].rgb[56][3]` : la **surface d'un cube 4×4×4** (64 − 8 cellules intérieures), envoyée au GPU comme texture 3D
+  (`R_SetLightGridColors`, les 8 cellules intérieures recopient des coins). Axes vérifiés sur `mp_dome` (sondes au soleil) :
+  tranche = z (tranche 3 = +z, la plus bleue : le ciel), rangée = y, colonne = x, indice 0 = côté négatif ; les faces
+  opposées au soleil sont les plus claires (elles voient les murs éclairés).
+- Hors grille : le moteur prend `colors[1]` (ou `colors[0]` sous la grille) et considère le point au soleil.
+- Validation : 99 % des props de `mp_dome` ont une sonde ; la carte « soleil » vue de dessus reproduit l'ombre du dôme et des bâtiments.
 
 ## 5. Perf (machine de dev lente, Chrome)
 
