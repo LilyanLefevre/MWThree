@@ -28,7 +28,7 @@ function buildGeometry(zone: LoadedZone, fileName: string, zoneBytes: number, ti
   const { batches: entityModels, missing: missingModels } = extractEntityModels(zone, entities)
   const staticModels = [...worldModels, ...entityModels]
   const sun = extractSun(zone)
-  const lightmaps = extractLightmaps(zone, sun)
+  const lightmaps = extractLightmaps(zone)
   const propLight = computePropLighting(zone.assets.find(a => a.typeName === 'GfxWorld')?.value?.lightGrid, staticModels)
 
   const spawns: SpawnPoint[] = []

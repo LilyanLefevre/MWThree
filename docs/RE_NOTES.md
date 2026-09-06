@@ -96,6 +96,21 @@ chaînes-constantes du moteur. Identifiés par les valeurs : `1668 classname`, `
 - Repère jeu : Z vers le haut, unités = pouces. Scène : `(x, z, −y) × 0.0254` (mètres, Y vers le haut).
 - `GfxWorld` fait 640 octets ; le premier mot (`name`) est typiquement une **référence** vers une chaîne déjà chargée.
 
+### Lightmaps (`GfxWorld.draw.lightmaps`)
+
+Formule tirée des pixel shaders IW4 décompilés (dépôt `iw4x-community/dexilifier`, `HLSL/ps/lm_sun_fog_r0c0_sm3.hlsl`) :
+```
+H = secondary(u, v/2)          B = secondary(u, v/2 + 0.5)        // deux moitiés empilées
+d = (H.a·4.08 − 2.08, B.a·4.064516 − 2.064516) ; k = saturate(1/√(1 + d·d))
+lumière = (B.rgb·k + H.rgb)² + primary(u, v) × saturate(N·sunDir) × sunColor
+couleur = (colorMap × couleurSommet)² × lumière                // gamma 2 : le moteur linéarise par le carré
+```
+IW5 (`mp_dome`) : primary 1024×2048 L8, secondary 512×2048 ARGB ; la disposition du primary = celle d'une moitié du secondary
+agrandie ×2 (vérifié visuellement : mêmes charts, bloc vide au même endroit relatif). L'ancienne extraction échantillonnait le
+secondary sur toute sa hauteur : l'ambiant venait d'une autre zone de l'atlas (fausses « taches de soleil » en intérieur).
+Les props (shaders `lp_*_sun`) : `(2·texel)² + saturate(N·sunDir) × sunColor × texel.w`, texel = texture 3D 4×4×4 de la light grid
+lue sur la surface du cube (`n / max|n|`), `w` = part de soleil visible.
+
 ### Light grid (`GfxWorld.lightGrid`) — décodé et utilisé pour les props
 
 Sondes de lumière du moteur pour les modèles. La logique de lookup est reprise du renderer IW3 décompilé

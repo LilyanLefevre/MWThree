@@ -72,6 +72,28 @@ export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materia
   return { map, textures: [...texCache.values(), ...normalCache.values()] }
 }
 
+/**
+ * The engine's lightmap shading (see extractLightmaps): ambient (2·rgb)² plus the sun where the primary (alpha)
+ * says it is visible, with the surface normal.
+ */
+function applyLightmapShading(mat: THREE.Material, sun: MapWorld['sun']) {
+  const dir = new THREE.Vector3(...(sun?.direction ?? [0.3, 0.8, 0.5])).normalize()
+  const color = new THREE.Vector3(...(sun?.color ?? [1, 1, 1]))
+  mat.onBeforeCompile = shader => {
+    shader.uniforms.uSunDir = { value: dir }
+    shader.uniforms.uSunColor = { value: color }
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWorldNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorldNormal = normalize(mat3(modelMatrix) * normal);')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWorldNormal;\nuniform vec3 uSunDir;\nuniform vec3 uSunColor;')
+      .replace('reflectedLight.indirectDiffuse += lightMapTexel.rgb * lightMapIntensity * RECIPROCAL_PI;',
+        'reflectedLight.indirectDiffuse += 4.0 * lightMapTexel.rgb * lightMapTexel.rgb'
+        + ' + lightMapTexel.a * max(dot(normalize(vWorldNormal), uSunDir), 0.0) * uSunColor;')
+  }
+  mat.customProgramCacheKey = () => 'iw-lightmap'
+}
+
 /** World materials: lightmapped surfaces use an unlit material whose light comes from the lightmap atlas. */
 export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; textures: THREE.Texture[] } {
   const lit = buildMaterials(world, world.groups.map(g => g.material))
@@ -95,11 +117,12 @@ export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; 
       const src = base as THREE.MeshLambertMaterial
       mat = new THREE.MeshBasicMaterial({
         map: src.map, color: src.map ? 0xffffff : src.color,
-        ...(lm ? { lightMap: lm, lightMapIntensity: Math.PI } : {}),
+        ...(lm ? { lightMap: lm } : {}),
         alphaTest: g.decal ? 0.02 : src.alphaTest, side: src.side,
         // decals are blended over the surface below with the vertex alpha
         ...(g.decal ? { vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {}),
       })
+      if (lm) applyLightmapShading(mat, world.sun)
       cache.set(key, mat)
     }
     return mat
