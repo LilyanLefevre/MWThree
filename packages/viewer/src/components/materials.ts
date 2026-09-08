@@ -1,11 +1,34 @@
 import * as THREE from 'three'
-import { materialColor } from '@mwthree/iw5-core'
+import { materialColor, UNIT_SCALE, type Fog } from '@mwthree/iw5-core'
 import type { MapWorld } from '../types'
 import type { TextureData } from '../worker/protocol'
 
 const S3TC_FORMATS = {
   dxt1: THREE.RGBA_S3TC_DXT1_Format, dxt3: THREE.RGBA_S3TC_DXT3_Format, dxt5: THREE.RGBA_S3TC_DXT5_Format,
 } as const
+
+/**
+ * The engine's exponential fog (lib/fog.hlsli): transmittance T = clamp(exp(−(d − start)·ln2/halfway), 1 − maxOpacity, 1)
+ * with d the distance to the camera, color = mix(fog, lit, T) in linear space. Uniforms shared by every world/prop material.
+ */
+const fogUniforms = { iwFog: { value: new THREE.Vector3(0, 0, 1) }, iwFogColor: { value: new THREE.Color() } }
+
+export function setFog(fog: Fog | null) {
+  if (!fog) { fogUniforms.iwFog.value.set(0, 0, 1); return }
+  fogUniforms.iwFog.value.set(fog.startDist * UNIT_SCALE, Math.LN2 / (fog.halfwayDist * UNIT_SCALE), 1 - fog.maxOpacity)
+  fogUniforms.iwFogColor.value.setRGB(...fog.color, THREE.SRGBColorSpace)
+}
+
+export function addFog(shader: THREE.WebGLProgramParametersWithUniforms) {
+  Object.assign(shader.uniforms, fogUniforms)
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying float vIwFogDist;')
+    .replace('#include <project_vertex>', '#include <project_vertex>\nvIwFogDist = length(mvPosition.xyz);')
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform vec3 iwFog;\nuniform vec3 iwFogColor;\nvarying float vIwFogDist;')
+    .replace('#include <tonemapping_fragment>',
+      'gl_FragColor.rgb = mix(iwFogColor, gl_FragColor.rgb, clamp(exp(-(vIwFogDist - iwFog.x) * iwFog.y), iwFog.z, 1.0));\n#include <tonemapping_fragment>')
+}
 
 /** A color map: compressed (uploaded as is) or decoded RGBA. */
 function colorTexture(data: TextureData): THREE.Texture {
@@ -68,6 +91,7 @@ export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materia
       const [r, g, b] = materialColor(name)
       map.set(name, new THREE.MeshLambertMaterial({ color: new THREE.Color(r, g, b) }))
     }
+    map.get(name)!.onBeforeCompile = addFog
   }
   return { map, textures: [...texCache.values(), ...normalCache.values()] }
 }
@@ -80,6 +104,7 @@ function applyLightmapShading(mat: THREE.Material, sun: MapWorld['sun']) {
   const dir = new THREE.Vector3(...(sun?.direction ?? [0.3, 0.8, 0.5])).normalize()
   const color = new THREE.Vector3(...(sun?.color ?? [1, 1, 1]))
   mat.onBeforeCompile = shader => {
+    addFog(shader)
     shader.uniforms.uSunDir = { value: dir }
     shader.uniforms.uSunColor = { value: color }
     shader.vertexShader = shader.vertexShader
@@ -123,6 +148,7 @@ export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; 
         ...(g.decal ? { vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {}),
       })
       if (lm) applyLightmapShading(mat, world.sun)
+      else mat.onBeforeCompile = addFog
       cache.set(key, mat)
     }
     return mat

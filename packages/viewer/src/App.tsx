@@ -7,6 +7,7 @@ import { WorldMesh } from './components/WorldMesh'
 import { Player } from './components/Player'
 import { StaticModels } from './components/StaticModels'
 import { Sky } from './components/Sky'
+import { setFog } from './components/materials'
 import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { MapInfo, MapWorld } from './types'
 import type { IwdSource, MapResponse, SpawnPoint } from './worker/protocol'
@@ -112,6 +113,7 @@ function App() {
   const [stage, setStage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [world, setWorld] = useState<MapWorld | null>(null)
+  useEffect(() => setFog(world?.fog ?? null), [world])
   const [fly, setFly] = useState(false)
   const [showCollision, setShowCollision] = useState(false)
   const [showSpawns, setShowSpawns] = useState(false)
@@ -191,7 +193,6 @@ function App() {
       <Canvas flat camera={{ position: [0, 3, 5], fov: 75, near: 0.05, far: 6000 }} style={{ width: '100%', height: '100%' }}>
         <color attach="background" args={['#9fb4c7']} />
         {world?.sky && <Sky sky={world.sky} />}
-        <fog attach="fog" args={['#9fb4c7', 300, 2500]} />
         <hemisphereLight args={['#cfdcee', '#7a6a55', 0.9]} />
         {import.meta.env.DEV && <RenderStats />}
         <directionalLight
