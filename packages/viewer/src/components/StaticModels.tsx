@@ -123,7 +123,7 @@ export function StaticModels({ world }: { world: MapWorld }) {
       for (const g of m.far?.groups ?? []) names.add(g.material)
     }
     const built = buildMaterials(world, names)
-    built.map.forEach(m => applyGridLighting(m, world.sun))
+    built.map.forEach((m, name) => { if (!world.materialBlends[name]) applyGridLighting(m, world.sun) })
     return built
   }, [world])
   useEffect(() => () => { built.map.forEach(m => m.dispose()); built.textures.forEach(t => t.dispose()) }, [built])

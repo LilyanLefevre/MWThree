@@ -29,7 +29,7 @@ export interface LoadResult {
   assets?: ZoneAssetSummary[]
 }
 
-import type { MaterialGroup, Lightmap, Sun, Fog, Objective, TriggerVolume } from '@mwthree/iw5-core'
+import type { MaterialGroup, Lightmap, Sun, Fog, MaterialBlend, Objective, TriggerVolume } from '@mwthree/iw5-core'
 import type { SpawnPoint, MapStats, CollisionData, StaticModelData, TextureData } from './worker/protocol'
 
 /** A loaded map, ready to render (meters, Y-up). */
@@ -55,6 +55,7 @@ export interface MapWorld {
   staticModels: StaticModelData[]
   sun: Sun | null
   fog: Fog | null
+  materialBlends: Record<string, MaterialBlend>
   objectives: Objective[]
   triggers: TriggerVolume[]
   spawns: SpawnPoint[]

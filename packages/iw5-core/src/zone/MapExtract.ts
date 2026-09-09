@@ -47,6 +47,36 @@ export interface MaterialGroup {
   lightmap?: number
 }
 
+export type Blend = 'add' | 'screen' | 'multiply'
+
+/** Unlit blended material (`*_unlit_*` / `*_effect_*` techniques ending in add, screen or multiply): god rays, glows, decals. */
+export interface MaterialBlend {
+  blend: Blend
+  /** `falloff` techniques: fades as the surface turns edge-on to the camera */
+  falloff: boolean
+  /** `_lin` techniques: the color map is sampled as linear data (no sRGB decode) */
+  linear: boolean
+}
+
+/** Blend mode of every unlit blended material of the world, its static models and the zone's XModels, by name. */
+export function extractMaterialBlends(zone: LoadedZone): Record<string, MaterialBlend> {
+  const out: Record<string, MaterialBlend> = {}
+  const add = (h: any) => {
+    const mat = resolveVal(zone, h)
+    const name = mat?.info?.name
+    if (!name || name in out) return
+    const ts: string = resolveVal(zone, mat.techniqueSet)?.name ?? ''
+    const m = /_(?:unlit|effect)_.*?(add|screen|multiply)/.exec(ts)
+    if (m) out[name] = { blend: m[1] as Blend, falloff: ts.includes('falloff'), linear: /_lin(_|$)/.test(ts) }
+  }
+  const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
+  for (const s of gfx?.dpvs?.surfaces ?? []) add(s.material)
+  const models = new Set<any>(zone.assets.filter(a => a.typeName === 'XModel').map(a => a.value))
+  for (const inst of gfx?.dpvs?.smodelDrawInsts ?? []) models.add(resolveVal(zone, inst.model))
+  for (const model of models) for (const h of model?.materialHandles ?? []) add(h)
+  return out
+}
+
 export interface WorldMesh {
   /** meters, Y-up (x, z, -y of the game's Z-up) */
   positions: Float32Array
@@ -155,8 +185,8 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
   }
   const groups: MaterialGroup[] = []
   const all: number[] = []
-  for (const { material, lightmap, decal, idx: list } of byMaterial.values()) {
-    groups.push({ material, lightmap, decal, start: all.length, count: list.length })
+  for (const { idx: list, ...group } of byMaterial.values()) {
+    groups.push({ ...group, start: all.length, count: list.length })
     for (let i = 0; i < list.length; i++) all.push(list[i])
   }
   return { positions, normals, uvs, lmUvs, vertexColors, colors, indices: Uint32Array.from(all), surfaces: drawn, groups, skippedSurfaces: skipped }

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { FastFileLoader } from '../packages/iw5-core/src/FastFileLoader.ts'
 import { ZoneLoader } from '../packages/iw5-core/src/zone/ZoneLoader.ts'
 import {
-  extractWorldMesh, extractMapEnts, extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals,
+  extractWorldMesh, extractMapEnts, extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractMaterialBlends,
   extractLightmaps, extractSun, extractFog, extractSkyImage, extractObjectives,
 } from '../packages/iw5-core/src/zone/MapExtract.ts'
 import { computePropLighting } from '../packages/iw5-core/src/zone/PropLighting.ts'
@@ -23,7 +23,7 @@ for (const dir of readdirSync(root).sort()) {
     const sun = extractSun(z), lightmaps = extractLightmaps(z)
     computePropLighting(z.assets.find(a => a.typeName === 'GfxWorld')?.value?.lightGrid, [...props, ...entityModels.batches])
     extractMaterialNormals(z)
-    const extra = `entityProps ${entityModels.batches.reduce((a, p) => a + p.matrices.length / 16, 0)} (missing ${entityModels.missing.length}) lightmaps ${lightmaps.length} sun ${sun ? 'yes' : 'no'} fog ${extractFog(z) ? 'yes' : 'no'} sky ${extractSkyImage(z) ?? '-'} objectives ${extractObjectives(ents).length}`
+    const extra = `entityProps ${entityModels.batches.reduce((a, p) => a + p.matrices.length / 16, 0)} (missing ${entityModels.missing.length}) lightmaps ${lightmaps.length} sun ${sun ? 'yes' : 'no'} fog ${extractFog(z) ? 'yes' : 'no'} blends ${Object.keys(extractMaterialBlends(z)).length} sky ${extractSkyImage(z) ?? '-'} objectives ${extractObjectives(ents).length}`
     let bad = 0; for (const i of mesh.indices) if (i >= mesh.positions.length / 3) bad++
     console.log(`${dir.padEnd(12)} tris ${mesh.indices.length / 3 | 0} props ${props.reduce((a, p) => a + p.matrices.length / 16, 0)} brushes ${col.brushCount} ents ${ents.length} spawns ${spawns} materials ${Object.keys(mats).length} ${extra}${bad ? ' BAD INDICES ' + bad : ''}`)
   } catch (e: any) { console.log(`${dir.padEnd(12)} FAIL ${e.message.split('\n')[0]}`) }

@@ -20,7 +20,7 @@ npm run dev                          # http://localhost:5173
 ```
 
 - Bouton « Select MW3 Game Folder » → choisir le dossier d'installation (ou un dossier contenant `zone/<map>/mp_<map>.ff`), puis cliquer une map.
-- Raccourci dev (Vite uniquement) : `http://localhost:5173/?dev=dome` charge `inputs/zone/dome/mp_dome.ff` ; `&free=1` accepte le clavier sans pointer lock (tests automatisés).
+- Raccourci dev (Vite uniquement) : `http://localhost:5173/?dev=dome` (ou toute map de `inputs/zone/`, ex. `?dev=village`) charge `inputs/zone/dome/mp_dome.ff` ; `&free=1` accepte le clavier sans pointer lock (tests automatisés) ; en dev, `window.__look(yaw, pitch, [x, y, z]?)` oriente la caméra (et la place en vol libre) pour cadrer une capture.
 - **H** affiche l'aide des commandes ; le panneau d'info montre l'état des calques (●/○).
 - Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, Ctrl = accroupi, **V = vol libre**, **C** = afficher la collision, **T / Maj+T** = spawn suivant/précédent (spawns deathmatch), **O** = repères de spawns (bleu alliés, rouge axe, vert deathmatch, jaune autres modes), **G** = volumes des triggers (orange : utilisation/bombe, jaune : zones, rouge : dégâts), **B** = objectifs (drapeaux de domination A/B/C avec leur rayon de capture, sites de bombe, drapeaux CTF, QG, sabotage ; affichés par défaut, aussi sur la mini-carte)
 - Mini-carte en bas à gauche : zone jouable (délimitée par les spawns) vue de dessus, ombrée par la hauteur, avec les spawns et le joueur
@@ -31,7 +31,7 @@ npm run dev                          # http://localhost:5173
 
 ### Sur le PC de test (Windows, `ssh pc`)
 
-Clone dans `C:\Users\Lilyan\mwthree` (avec `inputs/`). Serveur : `ssh pc "cd mwthree\packages\viewer && npx vite --host 0.0.0.0 --port 5173"` lancé lui aussi via `Invoke-CimMethod Win32_Process Create` pour survivre à la session SSH (log dans `C:\Users\Lilyan\vite.log`),
+Clone dans `C:\Users\Lilyan\mwthree` (avec `inputs/` : `main/*.iwd` et les 16 `zone/<map>/mp_<map>.ff`, sans `dlc`). Serveur : `ssh pc "cd mwthree\packages\viewer && npx vite --host 0.0.0.0 --port 5173"` lancé lui aussi via `Invoke-CimMethod Win32_Process Create` pour survivre à la session SSH (log dans `C:\Users\Lilyan\vite.log`),
 ouvert depuis le Mac sur `http://192.168.1.207:5173/?dev=dome&free=1`. Playwright tourne sur le PC (vrai GPU, fps représentatifs) ;
 lancer `playwright-cli -s=mw3 open …` via `Invoke-CimMethod Win32_Process Create`, sinon le navigateur meurt avec la session SSH.
 Premier chargement de `mp_dome` mesuré sur le PC (dev) : décompression 947 ms, lecture 342 ms, textures 925 ms ; 60 fps (vsync).

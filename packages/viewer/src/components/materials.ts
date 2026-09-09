@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { materialColor, UNIT_SCALE, type Fog } from '@mwthree/iw5-core'
+import { materialColor, UNIT_SCALE, type Fog, type MaterialBlend } from '@mwthree/iw5-core'
 import type { MapWorld } from '../types'
 import type { TextureData } from '../worker/protocol'
 
@@ -53,7 +53,8 @@ function colorTexture(data: TextureData): THREE.Texture {
 }
 
 /** One THREE material per game material name: textured when its color-map image was found, flat color otherwise. */
-export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materialNormals' | 'textures'>, names: Iterable<string>): { map: Map<string, THREE.Material>; textures: THREE.Texture[] } {
+/** `worldSurfaces`: the world mesh, whose vertex colors (alpha) fade blended layers; props have none. */
+export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materialNormals' | 'textures' | 'materialBlends'>, names: Iterable<string>, worldSurfaces = false): { map: Map<string, THREE.Material>; textures: THREE.Texture[] } {
   const byImage = new Map(world.textures.filter(t => !t.normal).map(t => [t.name, t]))
   const normals = new Map(world.textures.filter(t => t.normal).map(t => [t.name, t]))
   const normalCache = new Map<string, THREE.DataTexture>()
@@ -83,10 +84,15 @@ export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materia
           normalCache.set(nData.name, nTex)
         }
       }
+      const blend = world.materialBlends[name]
+      if (blend) { map.set(name, blendedMaterial(tex, blend, worldSurfaces)); continue }
       map.set(name, new THREE.MeshLambertMaterial({
         map: tex, alphaTest: data.hasAlpha ? 0.5 : 0, side: data.hasAlpha ? THREE.DoubleSide : THREE.FrontSide,
         ...(nTex ? { normalMap: nTex, normalScale: new THREE.Vector2(1, 1) } : {}),
       }))
+    } else if (world.materialBlends[name]) {
+      map.set(name, blendedMaterial(undefined, world.materialBlends[name], worldSurfaces))
+      continue
     } else {
       const [r, g, b] = materialColor(name)
       map.set(name, new THREE.MeshLambertMaterial({ color: new THREE.Color(r, g, b) }))
@@ -119,9 +125,50 @@ function applyLightmapShading(mat: THREE.Material, sun: MapWorld['sun']) {
   mat.customProgramCacheKey = () => 'iw-lightmap'
 }
 
+// src·srcFactor + dst·dstFactor for each unlit technique blend
+const BLEND_FACTORS = {
+  add: [THREE.OneFactor, THREE.OneFactor],
+  screen: [THREE.OneFactor, THREE.OneMinusSrcColorFactor],
+  multiply: [THREE.DstColorFactor, THREE.ZeroFactor],
+} as const
+
+/**
+ * Unlit blended layer (`wc_unlit_*` techniques): not lit by the lightmap, color = texture × vertex color.
+ * add/screen fade to black with the alpha (premultiplied), multiply fades to white; `falloff` also fades the layer
+ * as it turns edge-on (god rays).
+ */
+function blendedMaterial(map: THREE.Texture | undefined, { blend, falloff, linear }: MaterialBlend, vertexColors: boolean): THREE.Material {
+  const [blendSrc, blendDst] = BLEND_FACTORS[blend]
+  if (map && linear) { map = map.clone(); map.colorSpace = THREE.NoColorSpace; map.needsUpdate = true }
+  const mat = new THREE.MeshBasicMaterial({
+    // without its texture, the layer is left out: black adds nothing, white multiplies by one
+    ...(map ? { map } : {}), color: map || blend === 'multiply' ? 0xffffff : 0x000000, vertexColors, side: THREE.DoubleSide,
+    transparent: true, depthWrite: false, blending: THREE.CustomBlending, blendSrc, blendDst,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  })
+  const fade = falloff ? ' * vFacing' : ''
+  mat.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vFacing;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        vec3 facingNormal = normal;
+        #ifdef USE_INSTANCING
+          facingNormal = mat3(instanceMatrix) * facingNormal;
+        #endif
+        vFacing = abs(dot(normalize(normalMatrix * facingNormal), normalize(-mvPosition.xyz)));`)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vFacing;')
+      .replace('#include <opaque_fragment>', (blend === 'multiply'
+        ? `outgoingLight = mix(vec3(1.0), outgoingLight, diffuseColor.a${fade});`
+        : `outgoingLight *= diffuseColor.a${fade};`) + '\ndiffuseColor.a = 1.0;\n#include <opaque_fragment>')
+  }
+  mat.customProgramCacheKey = () => `iw-blend-${blend}-${falloff}`
+  return mat
+}
+
 /** World materials: lightmapped surfaces use an unlit material whose light comes from the lightmap atlas. */
 export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; textures: THREE.Texture[] } {
-  const lit = buildMaterials(world, world.groups.map(g => g.material))
+  const lit = buildMaterials(world, world.groups.map(g => g.material), true)
   const lmTex = world.lightmaps.map(l => {
     const t = new THREE.DataTexture(new Uint8Array(l.rgba.buffer, l.rgba.byteOffset, l.rgba.byteLength), l.width, l.height, THREE.RGBAFormat)
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping
@@ -135,7 +182,7 @@ export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; 
   const list = world.groups.map(g => {
     const base = lit.map.get(g.material)!
     const lm = g.lightmap !== undefined && g.lightmap >= 0 ? lmTex[g.lightmap] : undefined
-    if (!lm && !g.decal) return base
+    if ((!lm && !g.decal) || world.materialBlends[g.material]) return base
     const key = `${g.material}|${g.lightmap}|${g.decal ? 'd' : ''}`
     let mat = cache.get(key)
     if (!mat) {
