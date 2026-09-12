@@ -61,19 +61,11 @@ export interface MaterialBlend {
 /** Blend mode of every unlit blended material of the world, its static models and the zone's XModels, by name. */
 export function extractMaterialBlends(zone: LoadedZone): Record<string, MaterialBlend> {
   const out: Record<string, MaterialBlend> = {}
-  const add = (h: any) => {
-    const mat = resolveVal(zone, h)
-    const name = mat?.info?.name
-    if (!name || name in out) return
+  forEachMaterial(zone, (name, mat) => {
     const ts: string = resolveVal(zone, mat.techniqueSet)?.name ?? ''
     const m = /_(?:unlit|effect)_.*?(add|screen|multiply)/.exec(ts)
     if (m) out[name] = { blend: m[1] as Blend, falloff: ts.includes('falloff'), linear: /_lin(_|$)/.test(ts) }
-  }
-  const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
-  for (const s of gfx?.dpvs?.surfaces ?? []) add(s.material)
-  const models = new Set<any>(zone.assets.filter(a => a.typeName === 'XModel').map(a => a.value))
-  for (const inst of gfx?.dpvs?.smodelDrawInsts ?? []) models.add(resolveVal(zone, inst.model))
-  for (const model of models) for (const h of model?.materialHandles ?? []) add(h)
+  })
   return out
 }
 
@@ -367,31 +359,35 @@ function imageName(zone: LoadedZone, mat: any, semantic: number): string | null 
   if (!table?.length) return null
   const def = table.find(t => t.semantic === semantic)
   const img = resolveVal(zone, def?.u?.image)
-  return typeof img?.name === 'string' ? img.name : null
+  // a leading ',' marks an image asset defined in another zone; its file is in the .iwd under the plain name
+  return typeof img?.name === 'string' ? img.name.replace(/^,/, '') : null
 }
 
-/** material name -> color-map image name, for every material drawn by the world and its static models. */
 /** Same as extractMaterialImages for the normal-map slot. */
 export function extractMaterialNormals(zone: LoadedZone): Record<string, string | null> {
   return extractMaterialImages(zone, TS_NORMAL_MAP)
 }
 
+/** material name -> color-map image name, for every material drawn by the world and its models (static and entity). */
 export function extractMaterialImages(zone: LoadedZone, semantic = TS_COLOR_MAP): Record<string, string | null> {
   const out: Record<string, string | null> = {}
-  const add = (mat: any) => {
-    const name = materialName(zone, mat)
-    if (name && !(name in out)) out[name] = imageName(zone, mat, semantic)
+  forEachMaterial(zone, (name, mat) => { out[name] = imageName(zone, mat, semantic) })
+  return out
+}
+
+/** Every material that can be drawn, once per name: world surfaces, then the materials of every model (static and entity). */
+function forEachMaterial(zone: LoadedZone, fn: (name: string, mat: any) => void) {
+  const seen = new Set<string>()
+  const add = (h: any) => {
+    const mat = resolveVal(zone, h)
+    const name = mat?.info?.name
+    if (!name || seen.has(name)) return
+    seen.add(name)
+    fn(name, mat)
   }
   const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
   for (const s of gfx?.dpvs?.surfaces ?? []) add(s.material)
-  const seen = new Set<any>()
-  for (const inst of gfx?.dpvs?.smodelDrawInsts ?? []) {
-    const model = resolveVal(zone, inst.model)
-    if (!model || seen.has(model)) continue
-    seen.add(model)
-    for (const h of model.materialHandles ?? []) add(h)
-  }
-  return out
+  for (const model of modelsByName(zone).values()) for (const h of model.materialHandles ?? []) add(h)
 }
 
 // ---------------------------------------------------------------- lightmaps
