@@ -47,7 +47,7 @@ function buildGeometry(zone: LoadedZone, fileName: string, zoneBytes: number, ti
     fileName,
     positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, lmUvs: mesh.lmUvs, vertexColors: mesh.vertexColors,
     lightmaps, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
-    collision: collision && { positions: collision.positions, indices: collision.indices, brushes: collision.brushCount, models: collision.modelCount },
+    collision: collision && { positions: collision.positions, indices: collision.indices, brushes: collision.brushCount },
     staticModels: staticModels.map((m, i) => ({ ...m, instanceLight: propLight[i] })),
     sun,
     fog: extractFog(zone),
