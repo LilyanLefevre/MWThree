@@ -14,6 +14,8 @@ export interface IwiImage {
   mipCount: number
 }
 
+const IMG_FLAG_NOMIPMAPS = 1 << 1
+
 // IwiFormat (OpenAssetTools IwiTypes.h, iwi8); 0x06-0x0a are wavelet-compressed (Wavelet.ts)
 const FORMATS: Record<number, { kind: 'dxt'; dxt: DxtKind } | { kind: 'raw'; bpp: number; alpha?: boolean }> = {
   0x01: { kind: 'raw', bpp: 4 }, // BGRA
@@ -43,11 +45,11 @@ export function parseIwi(data: Uint8Array, maxSize = Infinity, asNormalMap = fal
   const levelBytes = (w: number, h: number) =>
     f.kind === 'dxt' ? Math.max(1, (w + 3) >> 2) * Math.max(1, (h + 3) >> 2) * dxtBlockBytes(f.dxt) : w * h * f.bpp
 
-  // levels from the top (index 0) down to 1x1
+  // levels from the top (index 0) down to 1x1; IMG_FLAG_NOMIPMAPS (bit 1, menu images) stores the top level only
   const levels: { w: number; h: number; bytes: number }[] = []
   for (let w = topW, h = topH; ; w = Math.max(1, w >> 1), h = Math.max(1, h >> 1)) {
     levels.push({ w, h, bytes: levelBytes(w, h) })
-    if (w === 1 && h === 1) break
+    if ((w === 1 && h === 1) || flags & IMG_FLAG_NOMIPMAPS) break
   }
   let pick = 0
   while (pick < levels.length - 1 && (levels[pick].w > maxSize || levels[pick].h > maxSize)) pick++
