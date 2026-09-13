@@ -1,7 +1,7 @@
 // IndexedDB cache of decoded maps: a second load of the same .ff skips decompression, parsing and texture decoding.
 
 /** Bump whenever the extracted data changes shape or content. */
-export const CACHE_VERSION = 19
+export const CACHE_VERSION = 21
 
 const DB = 'mwthree-cache'
 const STORE = 'maps'
@@ -28,15 +28,28 @@ export async function cacheGet<T>(key: string): Promise<T | undefined> {
   }
 }
 
-/** Stores a structured clone of `value` (taken synchronously: the caller may transfer its buffers right after). */
+/**
+ * Stores a structured clone of `value` (taken synchronously: the caller may transfer its buffers right after).
+ * Entries of older cache versions are dropped first, so they do not eat the storage quota.
+ */
 export async function cachePut(key: string, value: unknown): Promise<void> {
   try {
     const db = await open()
+    const done = (tx: IDBTransaction) => new Promise<void>((resolve, reject) => {
+      // a failed write (quota exceeded) aborts the transaction: without onabort the promise would never settle
+      tx.oncomplete = () => resolve(); tx.onerror = tx.onabort = () => reject(tx.error)
+    })
+    // drop older versions in their own transaction: an aborted write would roll the deletions back too
+    const purge = db.transaction(STORE, 'readwrite')
+    const keys = purge.objectStore(STORE).getAllKeys()
+    keys.onsuccess = () => { for (const k of keys.result) if (!String(k).startsWith(`v${CACHE_VERSION}:`)) purge.objectStore(STORE).delete(k) }
+    await done(purge)
     const tx = db.transaction(STORE, 'readwrite')
     tx.objectStore(STORE).put(value, key)
-    await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) })
-  } catch {
+    await done(tx)
+  } catch (err) {
     // quota exceeded or IndexedDB unavailable: the cache is only an optimisation
+    console.warn(`cache: ${key} not stored`, err)
   }
 }
 
