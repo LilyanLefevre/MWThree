@@ -6,7 +6,7 @@ import { objectiveColor, objectiveText, spawnColor } from '../markers'
 
 const SIZE = 220
 
-/** Top-down view of the playable area (bounded by the spawns), with spawns and the player. */
+/** Top-down view of the playable area (bounded by the spawns), with spawns and the player; placed by the HUD. */
 export function Minimap({ world }: { world: MapWorld }) {
   const canvas = useRef<HTMLCanvasElement>(null)
 
@@ -79,7 +79,7 @@ export function Minimap({ world }: { world: MapWorld }) {
         g.save()
         g.translate(x, y)
         g.rotate(-playerState.yaw)
-        g.fillStyle = '#ffe14d'
+        g.fillStyle = '#d4b46a'
         g.beginPath(); g.moveTo(0, -7); g.lineTo(5, 5); g.lineTo(-5, 5); g.closePath(); g.fill()
         g.restore()
       }
@@ -91,8 +91,6 @@ export function Minimap({ world }: { world: MapWorld }) {
 
   if (!bounds) return null
   return (
-    <canvas ref={canvas} width={SIZE} height={SIZE} style={{
-      position: 'absolute', left: 10, bottom: 40, zIndex: 100, border: '1px solid #444', borderRadius: 4, opacity: 0.9,
-    }} />
+    <canvas ref={canvas} width={SIZE} height={SIZE} style={{ display: 'block', opacity: 0.92 }} />
   )
 }

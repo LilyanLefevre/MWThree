@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Physics } from '@react-three/rapier'
-import FolderSelector from './components/FolderSelector'
 import { WorldMesh } from './components/WorldMesh'
 import { Player } from './components/Player'
 import { StaticModels } from './components/StaticModels'
@@ -12,11 +11,15 @@ import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { MapInfo, MapWorld } from './types'
 import type { IwdSource, MapResponse, SpawnPoint } from './worker/protocol'
 import { SpawnMarkers } from './components/SpawnMarkers'
-import { Minimap } from './components/Minimap'
 import { Objectives } from './components/Objectives'
 import { RenderStats } from './components/RenderStats'
 import { Triggers } from './components/Triggers'
-import { mapDisplayName } from './mapNames'
+import { createImageSource, type ImageSource } from './menuImages'
+import { MainMenu, type MapSource } from './ui/MainMenu'
+import { LoadingScreen } from './ui/LoadingScreen'
+import { Hud, type Layers } from './ui/Hud'
+import { PauseMenu } from './ui/PauseMenu'
+import './ui/ui.css'
 
 /** `values()` is missing from the DOM typings of the File System Access API. */
 const entries = (dir: FileSystemDirectoryHandle) => (dir as unknown as { values(): AsyncIterable<FileSystemHandle> }).values()
@@ -106,90 +109,161 @@ function spawnPose(s: SpawnPoint | undefined): { pos: [number, number, number]; 
   return { pos: [x * UNIT_SCALE, z * UNIT_SCALE + 0.3, -y * UNIT_SCALE], yaw }
 }
 
+/** Rough overall progress from the worker's stage messages (download and file reading come before). */
+function stageProgress(stage: string): number | null {
+  if (stage.startsWith('Recherche')) return 0.36
+  if (stage.startsWith('Décompression')) return 0.4
+  if (stage.startsWith('Lecture')) return 0.5
+  if (stage.startsWith('Construction')) return 0.58
+  const t = /^Textures (\d+)\/(\d+)/.exec(stage)
+  if (t) return 0.62 + 0.36 * (Number(t[1]) / Math.max(1, Number(t[2])))
+  return null
+}
+
+/** Download with progress (0-1) when the server sends a length. */
+async function download(url: string, onProgress: (p: number) => void): Promise<ArrayBuffer> {
+  const r = await fetch(url)
+  if (!r.ok || !r.body) throw new Error(`${url} : HTTP ${r.status}`)
+  const total = Number(r.headers.get('content-length')) || 0
+  const chunks: Uint8Array[] = []
+  let got = 0
+  const reader = r.body.getReader()
+  for (let c = await reader.read(); !c.done; c = await reader.read()) {
+    chunks.push(c.value); got += c.value.length
+    if (total) onProgress(got / total)
+  }
+  const out = new Uint8Array(got)
+  let o = 0
+  for (const c of chunks) { out.set(c, o); o += c.length }
+  return out.buffer
+}
+
+interface Server { maps: string[] | null; iwd: IwdSource[]; images: ImageSource | null }
+interface Local { root: FileSystemDirectoryHandle; info: MapInfo; iwd: IwdSource[]; images: ImageSource | null }
+
 function App() {
-  const [folder, setFolder] = useState<FileSystemDirectoryHandle | null>(null)
-  const [mapInfo, setMapInfo] = useState<MapInfo | null>(null)
-  const [loading, setLoading] = useState<string | null>(null)
+  const [server, setServer] = useState<Server>({ maps: null, iwd: [], images: null })
+  const [local, setLocal] = useState<Local | null>(null)
+  const [session, setSession] = useState<{ source: MapSource; file: string } | null>(null)
+  /** loading screen shown until the textures are in (or the map is ready without them) */
+  const [loading, setLoading] = useState(false)
   const [stage, setStage] = useState('')
+  const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [world, setWorld] = useState<MapWorld | null>(null)
   useEffect(() => setFog(world?.fog ?? null), [world])
+  const [texturing, setTexturing] = useState('')
   const [fly, setFly] = useState(false)
-  const [showCollision, setShowCollision] = useState(false)
-  const [showSpawns, setShowSpawns] = useState(false)
-  const [showObjectives, setShowObjectives] = useState(true)
-  const [showTriggers, setShowTriggers] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
+  const [layers, setLayers] = useState<Layers>({ collision: false, spawns: false, objectives: true, triggers: false })
+  const [debug, setDebug] = useState(false)
+  const [paused, setPaused] = useState(false)
   const [spawnIndex, setSpawnIndex] = useState(0)
-  const [texturing, setTexturing] = useState(false)
   const worker = useRef<Worker | null>(null)
+
+  // maps shared by the server that hosts this page (absent on static hosting)
+  useEffect(() => {
+    Promise.all([
+      fetch('/__inputs-list/maps').then(r => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ code: string }[] | null>,
+      fetch('/__inputs-list/main').then(r => (r.ok ? r.json() : [])).catch(() => []) as Promise<string[]>,
+    ]).then(([maps, iwds]) => {
+      const iwd = (Array.isArray(iwds) ? iwds : []).map(n => ({ url: `/__inputs/main/${n}` }))
+      setServer({ maps: Array.isArray(maps) ? maps.map(m => `mp_${m.code}.ff`) : null, iwd, images: iwd.length ? createImageSource(iwd) : null })
+    })
+  }, [])
+
+  const toMenu = useCallback((message: string | null = null) => {
+    worker.current?.terminate(); worker.current = null
+    if (document.pointerLockElement) document.exitPointerLock()
+    setWorld(null); setSession(null); setLoading(false); setPaused(false); setTexturing(''); setError(message)
+  }, [])
 
   const runWorker = useCallback((buffer: ArrayBuffer, fileName: string, iwd: IwdSource[]) => {
     worker.current?.terminate()
     const w = new Worker(new URL('./worker/mapWorker.ts', import.meta.url), { type: 'module' })
     worker.current = w
-    setLoading(fileName); setError(null); setStage('Démarrage')
     w.onmessage = (e: MessageEvent<MapResponse>) => {
       const m = e.data
-      if (m.type === 'progress') setStage(m.stage)
-      else if (m.type === 'error') { setError(m.message); setLoading(null); w.terminate() }
+      if (m.type === 'progress') {
+        setStage(m.stage)
+        const p = stageProgress(m.stage)
+        if (p !== null) setProgress(p)
+        if (m.stage.startsWith('Textures')) setTexturing(m.stage)
+      } else if (m.type === 'error') toMenu(`Échec du chargement de ${fileName} : ${m.message}`)
       else if (m.type === 'textures') {
         setWorld(prev => prev && { ...prev, textures: m.textures, materialImages: m.materialImages, materialNormals: m.materialNormals, sky: m.sky, stats: { ...prev.stats, textures: m.textures.length, msTextures: m.ms } })
-        setStage(''); setTexturing(false); w.terminate()
+        setTexturing(''); setLoading(false); setProgress(1); w.terminate()
       } else {
-        setWorld({ ...m, materialImages: {}, materialNormals: {}, textures: [], sky: null }); setLoading(null)
-        setTexturing(iwd.length > 0)
-        if (iwd.length === 0) w.terminate()
+        setWorld({ ...m, materialImages: {}, materialNormals: {}, textures: [], sky: null })
         ;(window as unknown as { __mapStats?: unknown }).__mapStats = m.stats
+        if (iwd.length === 0) { setLoading(false); w.terminate() } else { setProgress(0.6); setStage('Textures') }
       }
     }
-    w.onerror = ev => { setError(ev.message); setLoading(null) }
+    w.onerror = ev => toMenu(ev.message)
     w.postMessage({ buffer, fileName, iwd, s3tc: S3TC }, [buffer])
+  }, [toMenu])
+
+  const start = useCallback(async (source: MapSource, file: string) => {
+    toMenu()
+    setSession({ source, file }); setLoading(true); setProgress(0); setStage('Téléchargement')
+    try {
+      if (source === 'server') {
+        const code = file.replace(/^mp_/, '').replace(/\.ff$/, '')
+        const buffer = await download(`/__inputs/zone/${code}/${file}`, p => setProgress(0.35 * p))
+        runWorker(buffer, file, server.iwd)
+      } else if (local) {
+        setStage('Lecture du fichier')
+        runWorker(await readMapFile(local.root, file), file, local.iwd)
+      }
+    } catch (e) { toMenu(e instanceof Error ? e.message : String(e)) }
+  }, [toMenu, runWorker, server.iwd, local])
+
+  const pickFolder = useCallback(async () => {
+    try {
+      const root = await (window as unknown as { showDirectoryPicker(): Promise<FileSystemDirectoryHandle> }).showDirectoryPicker()
+      const [info, iwd] = await Promise.all([detectMW3Paths(root), listIwd(root)])
+      setLocal({ root, info, iwd, images: iwd.length ? createImageSource(iwd) : null })
+      setError(info.maps.length ? null : `Aucune map (mp_*.ff) trouvée dans « ${root.name} ».`)
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError')) setError(e instanceof Error ? e.message : String(e))
+    }
   }, [])
 
-  const onFolder = useCallback(async (fh: FileSystemDirectoryHandle) => {
-    setFolder(fh)
-    setMapInfo(await detectMW3Paths(fh))
-  }, [])
-
-  const loadMap = useCallback(async (name: string) => {
-    if (!folder) return
-    try { runWorker(await readMapFile(folder, name), name, await listIwd(folder)) } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
-  }, [folder, runWorker])
-
-  // dev helper: /?dev=dome loads inputs/zone/dome/mp_dome.ff served by the Vite dev server
+  // ?map=dome (or the older ?dev=dome) opens a server map directly, without the menu
+  const autostart = useRef(new URLSearchParams(location.search).get('map') ?? new URLSearchParams(location.search).get('dev'))
   useEffect(() => {
-    const dev = new URLSearchParams(location.search).get('dev')
-    if (!dev || !import.meta.env.DEV) return
-    const name = `mp_${dev}.ff`
-    setLoading(name); setStage('Téléchargement (dev)')
-    Promise.all([
-      fetch(`/__inputs/zone/${dev}/${name}`).then(r => r.arrayBuffer()),
-      fetch('/__inputs-list/main').then(r => r.json() as Promise<string[]>).catch(() => [] as string[]),
-    ]).then(([b, iwds]) => runWorker(b, name, iwds.map(n => ({ url: `/__inputs/main/${n}` })))).catch(e => setError(String(e)))
-  }, [runWorker])
+    const code = autostart.current
+    if (!code || server.maps === null) return
+    autostart.current = null
+    start('server', `mp_${code}.ff`)
+  }, [server.maps, start])
 
+  const inGame = !!world && !loading
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.repeat) return
-      if (e.code === 'KeyC') setShowCollision(v => !v)
-      if (e.code === 'KeyO') setShowSpawns(v => !v)
-      if (e.code === 'KeyB') setShowObjectives(v => !v)
-      if (e.code === 'KeyG') setShowTriggers(v => !v)
-      if (e.code === 'KeyH') setShowHelp(v => !v)
+      if (e.repeat || !inGame) return
+      if (e.code === 'KeyC') setLayers(l => ({ ...l, collision: !l.collision }))
+      if (e.code === 'KeyO') setLayers(l => ({ ...l, spawns: !l.spawns }))
+      if (e.code === 'KeyB') setLayers(l => ({ ...l, objectives: !l.objectives }))
+      if (e.code === 'KeyG') setLayers(l => ({ ...l, triggers: !l.triggers }))
+      if (e.code === 'KeyI') setDebug(v => !v)
       if (e.code === 'KeyT') setSpawnIndex(i => i + (e.shiftKey ? -1 : 1))
+      // with the pointer captured, Escape releases it (and the pause menu opens below); without it, Escape toggles the menu
+      if (e.code === 'Escape' && !document.pointerLockElement) setPaused(p => !p)
     }
+    // the pause menu opens whenever the pointer is released in game
+    const onLock = () => setPaused(!document.pointerLockElement)
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [])
+    document.addEventListener('pointerlockchange', onLock)
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerlockchange', onLock) }
+  }, [inGame])
 
   const spawnList = useMemo(() => (world ? teleportSpawns(world) : []), [world])
   useEffect(() => setSpawnIndex(0), [world?.fileName])
   const spawn = useMemo(() => (world ? spawnPose(spawnList[wrap(spawnIndex, spawnList.length)]) : null), [world, spawnList, spawnIndex])
-  const isLoading = loading !== null
+  const images = session?.source === 'server' ? server.images : local?.images ?? null
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#0b0d10' }}>
+    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#07090a' }}>
       <Canvas flat camera={{ position: [0, 3, 5], fov: 75, near: 0.05, far: 6000 }} style={{ width: '100%', height: '100%' }}>
         <color attach="background" args={['#9fb4c7']} />
         {world?.sky && <Sky sky={world.sky} />}
@@ -201,88 +275,31 @@ function App() {
           intensity={1.5}
         />
         {world && spawn && (
-          <Physics gravity={[0, -20, 0]}>
-            <WorldMesh world={world} showCollision={showCollision} />
+          <Physics gravity={[0, -20, 0]} paused={loading}>
+            <WorldMesh world={world} showCollision={layers.collision} />
             <StaticModels world={world} />
-            {showSpawns && <SpawnMarkers spawns={world.spawns} />}
-            {showObjectives && <Objectives objectives={world.objectives} />}
-            {showTriggers && <Triggers triggers={world.triggers} />}
+            {layers.spawns && <SpawnMarkers spawns={world.spawns} />}
+            {layers.objectives && <Objectives objectives={world.objectives} />}
+            {layers.triggers && <Triggers triggers={world.triggers} />}
             <Player spawn={spawn.pos} yaw={spawn.yaw} onFly={setFly} />
           </Physics>
         )}
       </Canvas>
 
-      <FolderSelector onFolderSelected={onFolder} />
-      {world && <Minimap world={world} />}
-      {showHelp && (
-        <div style={{
-          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 200, background: 'rgba(0,0,0,0.85)',
-          color: 'white', padding: '14px 20px', borderRadius: 6, fontFamily: 'monospace', fontSize: 13, lineHeight: 1.7, pointerEvents: 'none',
-        }}>
-          <div style={{ fontWeight: 'bold', marginBottom: 6 }}>Commandes</div>
-          {[
-            ['Clic', 'capturer la souris (Échap pour la libérer)'], ['WASD / ZQSD', 'se déplacer'], ['Espace', 'sauter (monter en vol)'],
-            ['Maj', 'sprint'], ['Ctrl', 'accroupi (descendre en vol)'], ['V', 'vol libre / marche'], ['T / Maj+T', 'spawn suivant / précédent'],
-            ['C', 'afficher la collision'], ['O', 'repères de spawns'], ['B', 'objectifs des modes de jeu'], ['G', 'volumes des triggers'], ['H', 'cette aide'],
-          ].map(([k, v]) => <div key={k}><span style={{ color: '#ffd84d', display: 'inline-block', width: 120 }}>{k}</span>{v}</div>)}
-        </div>
+      {inGame && world && (
+        <Hud world={world} fly={fly} spawn={{ index: wrap(spawnIndex, spawnList.length), count: spawnList.length }}
+          texturing={texturing} layers={layers} debug={debug} />
       )}
-
-      <div style={{
-        position: 'absolute', top: 10, right: 10, zIndex: 100, background: 'rgba(0,0,0,0.75)', color: 'white',
-        padding: 10, borderRadius: 5, fontFamily: 'monospace', fontSize: 12, maxHeight: '85vh', overflowY: 'auto', minWidth: 240,
-      }}>
-        {isLoading && <div style={{ color: '#8af' }}>⏳ {loading}<br />{stage}…</div>}
-        {texturing && !isLoading && <div style={{ color: '#8af' }}>🖼 {stage || 'Textures'}…</div>}
-        {error && <div style={{ color: '#f77' }}>✗ {error}</div>}
-        {world && !isLoading && (
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ color: '#6f6' }}>✓ {mapDisplayName(world.fileName)} <span style={{ color: '#888' }}>({world.fileName})</span></div>
-            <div>{(world.indices.length / 3).toLocaleString()} triangles · {world.stats.surfaces.toLocaleString()} surfaces</div>
-            <div>{world.stats.entities.toLocaleString()} entités · {world.spawns.length} spawns</div>
-            <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles){world.textures.length > 0 && ` · ${world.textures.filter(t => !t.normal).length} textures`}</div>
-            <div>dont {world.stats.entityProps} issus d'entités ({world.stats.missingEntityModels} modèles absents)</div>
-            <div style={{ color: '#aaa' }}>
-              {world.stats.fromCache
-                ? `chargé depuis le cache en ${world.stats.msTotal} ms`
-                : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms${world.stats.msTextures ? ` · textures ${world.stats.msTextures} ms` : ''}`}
-            </div>
-            <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes` : 'collision : mesh visible'}</div>
-            <div style={{ marginTop: 4 }}>
-              {[
-                ['C', 'collision', showCollision],
-                ['O', `spawns (${world.spawns.length})`, showSpawns],
-                ['B', `objectifs (${world.objectives.length})`, showObjectives],
-                ['G', `triggers (${world.triggers.length})`, showTriggers],
-              ].map(([k, label, on]) => (
-                <span key={k as string} style={{ marginRight: 8, color: on ? '#fff' : '#777' }}>{on ? '●' : '○'} {k} {label}</span>
-              ))}
-            </div>
-            <div>spawn {spawnList.length ? wrap(spawnIndex, spawnList.length) + 1 : 0}/{spawnList.length} (T / Maj+T)</div>
-            <div style={{ color: '#ff6' }}>{fly ? 'Mode vol (V pour revenir)' : 'Marche (V = vol libre)'}</div>
-          </div>
-        )}
-        {mapInfo && (
-          <>
-            <div style={{ fontWeight: 'bold' }}>{mapInfo.path}</div>
-            <div>Maps: {mapInfo.maps.length} · Archives: {mapInfo.archives.length}</div>
-            <hr style={{ borderColor: '#555', margin: '6px 0' }} />
-            {mapInfo.maps.map(m => (
-              <div key={m} onClick={() => !isLoading && loadMap(m)}
-                style={{ cursor: isLoading ? 'wait' : 'pointer', padding: '2px 4px', background: loading === m ? '#555' : 'transparent', borderRadius: 3 }}>
-                {mapDisplayName(m)} <span style={{ color: '#888' }}>{m}</span>
-              </div>
-            ))}
-          </>
-        )}
-      </div>
-
-      <div style={{
-        position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white',
-        padding: '4px 12px', borderRadius: 5, zIndex: 100, fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
-      }}>
-        Clic = capturer la souris · WASD/ZQSD · Espace saut · Maj sprint · Ctrl accroupi · V vol libre · H aide
-      </div>
+      {inGame && paused && session && (
+        <PauseMenu file={session.file} layers={layers} onToggle={k => setLayers(l => ({ ...l, [k]: !l[k] }))}
+          onResume={() => setPaused(false)} onQuit={() => toMenu()} />
+      )}
+      {loading && session && <LoadingScreen file={session.file} images={images} stage={stage} progress={progress} />}
+      {!session && (
+        <MainMenu serverMaps={server.maps} serverImages={server.images}
+          local={local && { name: local.info.path, maps: local.info.maps }} localImages={local?.images ?? null}
+          onPickFolder={pickFolder} onLoad={start} error={error} />
+      )}
     </div>
   )
 }
