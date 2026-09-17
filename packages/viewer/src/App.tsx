@@ -138,11 +138,11 @@ async function download(url: string, onProgress: (p: number) => void): Promise<A
   return out.buffer
 }
 
-interface Server { maps: string[] | null; iwd: IwdSource[]; images: ImageSource | null }
+interface Server { maps: string[] | null; paths: Record<string, string>; iwd: IwdSource[]; images: ImageSource | null }
 interface Local { root: FileSystemDirectoryHandle; info: MapInfo; iwd: IwdSource[]; images: ImageSource | null }
 
 function App() {
-  const [server, setServer] = useState<Server>({ maps: null, iwd: [], images: null })
+  const [server, setServer] = useState<Server>({ maps: null, paths: {}, iwd: [], images: null })
   const [local, setLocal] = useState<Local | null>(null)
   const [session, setSession] = useState<{ source: MapSource; file: string } | null>(null)
   /** loading screen shown until the textures are in (or the map is ready without them) */
@@ -163,11 +163,15 @@ function App() {
   // maps shared by the server that hosts this page (absent on static hosting)
   useEffect(() => {
     Promise.all([
-      fetch('/__inputs-list/maps').then(r => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ code: string }[] | null>,
+      fetch('/__inputs-list/maps').then(r => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ code: string; path: string }[] | null>,
       fetch('/__inputs-list/main').then(r => (r.ok ? r.json() : [])).catch(() => []) as Promise<string[]>,
     ]).then(([maps, iwds]) => {
       const iwd = (Array.isArray(iwds) ? iwds : []).map(n => ({ url: `/__inputs/main/${n}` }))
-      setServer({ maps: Array.isArray(maps) ? maps.map(m => `mp_${m.code}.ff`) : null, iwd, images: iwd.length ? createImageSource(iwd) : null })
+      const list = Array.isArray(maps) ? maps : null
+      setServer({
+        maps: list && list.map(m => `mp_${m.code}.ff`), paths: Object.fromEntries((list ?? []).map(m => [`mp_${m.code}.ff`, m.path])),
+        iwd, images: iwd.length ? createImageSource(iwd) : null,
+      })
     })
   }, [])
 
@@ -207,15 +211,16 @@ function App() {
     setSession({ source, file }); setLoading(true); setProgress(0); setStage('Téléchargement')
     try {
       if (source === 'server') {
-        const code = file.replace(/^mp_/, '').replace(/\.ff$/, '')
-        const buffer = await download(`/__inputs/zone/${code}/${file}`, p => setProgress(0.35 * p))
+        const path = server.paths[file]
+        if (!path) throw new Error(`${file} n'est pas sur le serveur`)
+        const buffer = await download(`/__inputs/${path}`, p => setProgress(0.35 * p))
         runWorker(buffer, file, server.iwd)
       } else if (local) {
         setStage('Lecture du fichier')
         runWorker(await readMapFile(local.root, file), file, local.iwd)
       }
     } catch (e) { toMenu(e instanceof Error ? e.message : String(e)) }
-  }, [toMenu, runWorker, server.iwd, local])
+  }, [toMenu, runWorker, server.iwd, server.paths, local])
 
   const pickFolder = useCallback(async () => {
     try {
