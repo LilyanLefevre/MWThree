@@ -79,6 +79,20 @@ npm run preview -w packages/viewer -- --host           # http://<ip-de-la-machin
 sur internet). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il n'y a alors pas d'onglet Serveur,
 chacun charge son propre dossier MW3.
 
+### Docker
+
+L'image sert le viewer et partage le dossier de jeu monté sur `/data` (une installation MW3 telle quelle : `zone/<langue>/mp_*.ff`
+et `main/*.iwd`, ou la disposition `inputs/` du dépôt) :
+
+```bash
+docker run -d -p 4173:4173 -v "/chemin/vers/Call of Duty Modern Warfare 3:/data:ro" ghcr.io/lilyanlefevre/mwthree:latest
+# ou, depuis le dépôt :
+MW3_DIR="/chemin/vers/MW3" docker compose up -d --build
+```
+
+La CI (GitHub Actions) vérifie chaque push (tests, typage, lint, build) et publie l'image sur GHCR : `latest` depuis `main`,
+la version depuis les tags `v*`.
+
 ### Build complet (tous les packages)
 
 ```bash

@@ -136,6 +136,12 @@ lue sur la surface du cube (`n / max|n|`), `w` = part de soleil visible.
 - Contrôle de la reconstruction des brushes : l'enveloppe convexe de chaque brush solide remplit exactement sa `brushBounds`
   (0 écart sur les 12 249 brushes de `mp_seatown`).
 
+### Surfaces « shadow caster » des modèles
+
+Les arbres (et d'autres feuillages) contiennent une surface au matériau `mc/mtl_*shadow_caster` (technique
+`mc_shadowcaster_atest`, `sortKey` 34) : un masque blanc à la forme du feuillage, qui ne sert qu'aux ombres. Comme pour le monde,
+ces surfaces ne sont pas dessinées (sinon : feuilles blanches par-dessus le vrai feuillage, ex. `mp_paris`).
+
 ### Collision des modèles statiques
 
 `clipMap_t.staticModelList` liste les modèles statiques (avec `XModel.contents`, `collLod`, `collSurfs`), mais le moteur ne les
