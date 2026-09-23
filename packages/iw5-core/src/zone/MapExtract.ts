@@ -360,7 +360,8 @@ function imageName(zone: LoadedZone, mat: any, semantic: number): string | null 
   mat = resolveVal(zone, mat)
   const table: any[] | undefined = mat?.textureTable
   if (!table?.length) return null
-  const def = table.find(t => t.semantic === semantic)
+  // thermal ("heat") techniques bind a second color-semantic image, the FLIR one, in a slot named heatMap (nameStart 'h')
+  const def = table.find(t => t.semantic === semantic && t.nameStart !== 0x68) ?? table.find(t => t.semantic === semantic)
   const img = resolveVal(zone, def?.u?.image)
   // a leading ',' marks an image asset defined in another zone; its file is in the .iwd under the plain name
   return typeof img?.name === 'string' ? img.name.replace(/^,/, '') : null
