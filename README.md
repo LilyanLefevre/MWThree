@@ -15,7 +15,7 @@ Reconstruit un Call of Duty MW3 (2011) jouable dans le navigateur en parsant les
 | Visite des spawns (`T`) | Intérieur, lightmaps et ombres |
 |---|---|
 | ![Visite des spawns](docs/images/screens/dome-tour.gif) | ![Intérieur](docs/images/screens/dome-interior.jpg) |
-| **Objectifs (`B`) et mini-carte** | **Collision (`C`) : brushes + props** |
+| **Objectifs (`B`) et mini-carte** | **Collision (`C`)** |
 | ![Objectifs](docs/images/screens/dome-objectives.jpg) | ![Collision](docs/images/screens/dome-collision.jpg) |
 
 Ce qui est fait : menu (maps partagées par le serveur ou dossier MW3 local), écrans de chargement d'origine, HUD et menu pause ;
