@@ -27,6 +27,18 @@ puis l'**XAssetList** (16 octets : `stringCount`, `strings*`, `assetCount`, `ass
 
 > Un ancien dossier `inputs/mp_seatown/` au format "IW4x" (mod) n'est pas supporté ; utiliser les zones retail `inputs/zone/<map>/`.
 
+### Maps custom (ZoneTool, `IWffu100` + Zstandard) — décompression faite, zone non lue
+
+Les maps de la communauté pour serveurs privés (`usermaps/<map>/<map>.ff` + `.iwd` + `.arena`, ex. `mp_shipment`, `mp_rust_long`)
+sont des FastFiles non signés dont le flux commence, après les 21 octets d'en-tête, par la signature Zstandard `28 B5 2F FD` (version
+2000 dans l'en-tête ; ZoneTool, `FFCompression.cpp`). `FastFileLoader` les décompresse avec `fzstd` (JS pur). L'en-tête XFile (taille,
+9 blocs) et la liste d'assets (tous les pointeurs à `0xFFFFFFFF`) ont la forme habituelle, et les ~28 premiers assets (déclarations,
+shaders vertex et pixel) se lisent. **Désynchronisation** ensuite sur `mp_shipment` : à l'entrée n°28 (liste : déclaration de vertex)
+le flux contient un shader vertex, puis un pixel (`ps_3_0`), si bien que le lecteur n'atteint que 2,2 Mo sur 24 (blocs simulés 1,9 Mo
+sur 10,8 Mo). Ces zones listent aussi explicitement les shaders, déclarations et images, qui sont inline dans les zones retail.
+Pistes : une déclaration de vertex identique déjà écrite n'a peut-être pas de données dans le flux ; ou les structs ZoneTool diffèrent
+du schéma OAT. Non résolu.
+
 ## 2. Modèle de chargement (miroir de OpenAssetTools)
 
 Le flux est **séquentiel** : les structs sont lues "inline", puis, en profondeur d'abord et dans

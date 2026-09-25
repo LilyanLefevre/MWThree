@@ -24,6 +24,7 @@
   "license": "MIT",
   "dependencies": {
     "@types/node": "^24.13.3",
+    "fzstd": "^0.1.1",
     "pako": "^3.0.1"
   }
 }

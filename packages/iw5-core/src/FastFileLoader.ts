@@ -1,4 +1,5 @@
 import * as pako from 'pako'
+import { decompress as zstdDecompress } from 'fzstd'
 
 export const SUPPORTED_MAGICS = ['IWff0100', 'IWffu100'] as const
 export type FastFileMagic = typeof SUPPORTED_MAGICS[number]
@@ -14,6 +15,9 @@ const AUTH_OFFSET = HEADER_SIZE + PREFIX_SIZE // 21
 const AUTH_HEADER_SIZE = 0x4000 // 16384
 const CHUNK_SIZE = 0x2000 // 8192
 const DATA_CHUNKS_PER_GROUP = 256
+
+/** Zstandard frame magic 0xFD2FB528 (little endian): custom-map linkers compress with zstd instead of zlib. */
+const isZstd = (s: Uint8Array) => s.length > 4 && s[0] === 0x28 && s[1] === 0xb5 && s[2] === 0x2f && s[3] === 0xfd
 
 function bytesToArrayBuffer(data: Uint8Array): ArrayBuffer {
   const ab = new ArrayBuffer(data.length)
@@ -51,7 +55,7 @@ export class FastFileLoader {
   load(): ArrayBuffer {
     const compressed = this.compressedStream()
     try {
-      return bytesToArrayBuffer(pako.inflate(compressed))
+      return bytesToArrayBuffer(isZstd(compressed) ? zstdDecompress(compressed) : pako.inflate(compressed))
     } catch (e) {
       throw new Error(`Decompression failed: ${e instanceof Error ? e.message : e}`)
     }
@@ -60,7 +64,7 @@ export class FastFileLoader {
   /** Same as load(), but uses the platform's native zlib (DecompressionStream) when available: much faster in browsers. */
   async loadAsync(): Promise<ArrayBuffer> {
     const compressed = this.compressedStream()
-    if (typeof DecompressionStream !== 'undefined') {
+    if (typeof DecompressionStream !== 'undefined' && !isZstd(compressed)) {
       try {
         const stream = new Blob([compressed as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate'))
         return await new Response(stream).arrayBuffer()
