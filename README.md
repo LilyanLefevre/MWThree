@@ -79,6 +79,13 @@ npm run preview -w packages/viewer -- --host           # http://<ip-de-la-machin
 sur internet). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il n'y a alors pas d'onglet Serveur,
 chacun charge son propre dossier MW3.
 
+### Maps de la communauté
+
+Les maps custom pour serveurs privés (FastFiles ZoneTool/Plutonium) se chargent comme les autres : déposez leur dossier dans
+`inputs/usermaps/<map>/` (`mp_<map>.ff`, `.iwd`, `_load.iwd`, `.arena`), ou choisissez-le via « Mes fichiers ». Elles apparaissent dans le
+menu avec leur nom d'arène. Testées : `mp_shipment` et `mp_rust_long`. Ces fichiers restent sur votre machine : n'hébergez que des maps
+dont l'auteur autorise la redistribution.
+
 ### Docker
 
 L'image sert le viewer et partage le dossier de jeu monté sur `/data` (une installation MW3 telle quelle : `zone/<langue>/mp_*.ff`
