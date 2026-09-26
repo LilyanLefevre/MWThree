@@ -1,7 +1,7 @@
 // clipMap_t brushes (+ terrain triangles) -> a single triangle mesh for player physics.
 import type { LoadedZone } from './ZoneLoader.js'
 import { PlainArray } from './ZoneLoader.js'
-import { UNIT_SCALE, extractMapEnts } from './MapExtract.js'
+import { UNIT_SCALE } from './MapExtract.js'
 import { convexFaces, type Plane } from './Convex.js'
 
 const CONTENTS_SOLID = 0x1
@@ -82,13 +82,12 @@ export function extractCollisionMesh(zone: LoadedZone): CollisionMesh | null {
 }
 
 /**
- * Brushes of the submodels (*N) used by game-mode objects: script_brushmodel entities with a script_gameobjectname
- * (HQ crates, bomb zones, sabotage, airdrop pallet), which mode scripts delete when the mode is not played.
- * Other submodels (prefab clips, taxi ads…) stay solid, as at the start of a match.
+ * Brushes of every submodel (*1, *2…): script_brushmodel and trigger entities (bomb zones, HQ crates, radio triggers, doors…).
+ * They are stored in coordinates local to their entity (around 0,0,0) and placed by its `origin`, and the mode scripts move or
+ * delete them: merged into the static mesh they pile up as invisible solid blocks at the map's center. The game's own maps give
+ * them no solid contents, but community maps (ZoneTool) do, on triggers in particular.
  */
 function submodelBrushes(zone: LoadedZone, clip: any): Set<number> {
-  const gameplay = new Set<number>()
-  for (const e of extractMapEnts(zone)) if (e.script_gameobjectname && e.model?.startsWith('*')) gameplay.add(Number(e.model.slice(1)))
   const nodes = clip.info.leafbrushNodes
   const out = new Set<number>()
   // leafBrushCount > 0: a leaf listing brushes; < 0: also descend into the next node; then both children
@@ -106,8 +105,7 @@ function submodelBrushes(zone: LoadedZone, clip: any): Set<number> {
     if (c0) walk(i + c0)
     if (c1) walk(i + c1)
   }
-  for (const i of gameplay) {
-    if (!(i > 0 && i < (clip.numSubModels ?? 0))) continue
+  for (let i = 1; i < (clip.numSubModels ?? 0); i++) {
     const leaf = get(clip.cmodels, i).leaf
     if (leaf.brushContents && leaf.leafBrushNode > 0) walk(leaf.leafBrushNode) // node 0 is the world's root
   }
