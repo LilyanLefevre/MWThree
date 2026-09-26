@@ -113,6 +113,27 @@ function kindSize(k: ReturnType<typeof primKind>): number {
   return k === 'u8' || k === 'i8' ? 1 : k === 'u16' || k === 'i16' ? 2 : k === 'f64' || k === 'u64' || k === 'i64' ? 8 : 4
 }
 
+/**
+ * Zones linked by ZoneTool for the Plutonium client scramble the header struct of a few asset types, with a key made of the
+ * zone's name. Each byte went through 4 rounds of `b = ~b ^ key[(round * size + i) % keyLength] ^ round`.
+ */
+const SCRAMBLED_HEADERS = new Set(['MaterialTechniqueSet', 'ComWorld', 'MapEnts', 'FxWorld', 'clipMap_t', 'GfxWorld', 'WeaponCompleteDef'])
+
+export function unscrambleHeader(bytes: Uint8Array, zoneName: string): void {
+  const key = new TextEncoder().encode(`${zoneName}: This fastfile is property of the Plutonium Project.`)
+  const n = bytes.length
+  for (let i = 0; i < n; i++) {
+    let b = bytes[i]
+    for (let round = 3; round >= 0; round--) b = ~(b ^ round ^ key[(round * n + i) % key.length]) & 0xff
+    bytes[i] = b
+  }
+}
+
+export interface ZoneLoaderOptions {
+  /** names the zone may have been linked under (e.g. "mp_shipment"), tried to unscramble ZoneTool headers */
+  zoneNames?: string[]
+}
+
 export class ZoneLoader {
   private view: DataView
   private u8: Uint8Array
@@ -128,9 +149,15 @@ export class ZoneLoader {
   /** optional trace: called after each asset */
   onAsset?: (i: number, a: LoadedAsset, pos: number) => void
 
-  constructor(buf: ArrayBuffer) {
+  private zoneNames: string[]
+  private blockSizes: number[] = []
+  /** the zone name that unscrambled the headers, once found */
+  scrambleKeyName: string | null = null
+
+  constructor(buf: ArrayBuffer, options: ZoneLoaderOptions = {}) {
     this.view = new DataView(buf)
     this.u8 = new Uint8Array(buf)
+    this.zoneNames = options.zoneNames ?? []
   }
 
   // ------------------------------------------------------------ stream / blocks
@@ -172,6 +199,7 @@ export class ZoneLoader {
     const externalSize = this.readU32()
     const blockSizes: number[] = []
     for (let i = 0; i < 9; i++) blockSizes.push(this.readU32())
+    this.blockSizes = blockSizes
 
     // XAssetList
     this.pushBlock(XFILE_BLOCK.VIRTUAL)
@@ -259,11 +287,45 @@ export class ZoneLoader {
     const def = schema.structs[structName]
     this.alloc(def.size, rules?.allocalign ?? def.align, ASSET_HEADER_BLOCK)
     const bytes = this.readBytes(def.size)
+    if (SCRAMBLED_HEADERS.has(structName)) this.unscramble(structName, bytes)
     const obj = this.decodeStruct(structName, bytes, 0)
     this.pushBlock(XFILE_BLOCK.VIRTUAL)
     this.processStruct([{ type: structName, obj, prefix: '' }], structName, obj)
     this.popBlock()
     return obj
+  }
+
+  /**
+   * ZoneTool sometimes forgets to reset a pointer and leaves a memory address of its own process in the zone (e.g.
+   * PhysCollmap.info, clipMap_t.staticModelList) while writing the data after it. A real reference is
+   * `((block << 28) | offset) + 1` into a block of the zone: anything outside the declared blocks is such a leftover.
+   */
+  private isLeftoverPointer(ptr: number): boolean {
+    if (ptr === POINTER_FOLLOWING || ptr === POINTER_INSERT) return false
+    const block = ptr >>> 28, offset = (ptr & 0x0fffffff) - 1
+    return block > 8 || offset < 0 || offset >= this.blockSizes[block]
+  }
+
+  /**
+   * Header structs start with a name pointer: "data follows" (0xFFFFFFFF) in a ZoneTool zone once in clear, which also
+   * tells whether a header is scrambled at all (zones of the game itself never are; any other pointer value of theirs
+   * is a plausible null, insert or reference).
+   */
+  private unscramble(structName: string, bytes: Uint8Array) {
+    const word = () => (bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24) >>> 0
+    const isClear = () => word() === POINTER_FOLLOWING
+    if (isClear()) return
+    if (!this.scrambleKeyName) {
+      const w = word()
+      if (w === 0 || w === POINTER_INSERT || !this.isLeftoverPointer(w)) return // an unscrambled zone
+    }
+    const scrambled = bytes.slice()
+    for (const name of this.scrambleKeyName ? [this.scrambleKeyName] : this.zoneNames) {
+      unscrambleHeader(bytes, name)
+      if (isClear()) { this.scrambleKeyName = name; return }
+      bytes.set(scrambled)
+    }
+    throw new Error(`${structName} header is scrambled (ZoneTool/Plutonium zone) and the zone name is unknown: tried ${this.zoneNames.join(', ') || 'none'}`)
   }
 
   // ------------------------------------------------------------ decode
@@ -526,6 +588,7 @@ export class ZoneLoader {
   /** Load the pointee of a single pointer value. Returns the loaded value (or the raw pointer when nothing inline). */
   private loadPointer(scopes: Scope[], m: Member, ptr: number, idxSuffix: string, memberAddr?: number): any {
     if (ptr === 0) return null
+    if (this.scrambleKeyName && this.isLeftoverPointer(ptr)) ptr = POINTER_FOLLOWING
     let fr = this.findRule(scopes, m.name, idxSuffix)
     if (idxSuffix) {
       const b = this.findRule(scopes, m.name)
