@@ -1,7 +1,7 @@
 // IndexedDB cache of decoded maps: a second load of the same .ff skips decompression, parsing and texture decoding.
 
 /** Bump whenever the extracted data changes shape or content. */
-export const CACHE_VERSION = 24
+export const CACHE_VERSION = 27
 
 const DB = 'mwthree-cache'
 const STORE = 'maps'

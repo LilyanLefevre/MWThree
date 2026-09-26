@@ -46,6 +46,8 @@ export interface MaterialGroup {
   count: number
   /** blended decal layer (alpha comes from the vertex color) */
   decal?: boolean
+  /** opaque layer drawn over another surface (signs, stains): needs a depth offset, not blending */
+  overlay?: boolean
   /** index into the lightmap list, or -1 for unlit-by-lightmap surfaces */
   lightmap?: number
 }
@@ -59,6 +61,16 @@ export interface MaterialBlend {
   falloff: boolean
   /** `_lin` techniques: the color map is sampled as linear data (no sRGB decode) */
   linear: boolean
+}
+
+/**
+ * Names of the lit materials whose technique is opaque (`_r0…`, "replace"): their color map's alpha is not an opacity (it
+ * often holds gloss or nothing), so the viewer must not alpha-test them. `_t0…` techniques are alpha-tested, `_b0…` blended.
+ */
+export function extractOpaqueMaterials(zone: LoadedZone): string[] {
+  const out: string[] = []
+  forEachMaterial(zone, (name, mat) => { if (/_r0c/.test(techniqueName(zone, mat)) && !/_unlit_|_effect_/.test(techniqueName(zone, mat))) out.push(name) })
+  return out
 }
 
 /** Blend mode of every unlit blended material of the world, its static models and the zone's XModels, by name. */
@@ -93,9 +105,21 @@ export interface WorldMesh {
 
 const HIDDEN_MATERIAL = /(^|\/)(sky|clip|trigger|nodraw|caulk|portal|hint|origin|skip|tools?|hdrportal|shadowcaster|atmos_)/i
 
-/** Material.info.sortKey values from this one up (except the shadow-caster key) are blended decal layers. */
-const DECAL_SORT_KEY_MIN = 6
+/**
+ * Material.info.sortKey values from this one up are drawn after the opaque world. Whether they blend depends on the technique
+ * (`_b0…` = blend; `r0` replace and `t0` alpha test are opaque): ZoneTool-linked maps number sort keys differently (an opaque
+ * wall can have key 6, the shadow caster 35), so the key alone cannot tell a decal from a wall.
+ */
+const LATE_SORT_KEY_MIN = 6
+const OVERLAY_SORT_KEY_MIN = 7
 const SHADOW_SORT_KEY = 34
+
+const techniqueName = (zone: LoadedZone, mat: any): string => resolveVal(zone, resolveVal(zone, mat)?.techniqueSet)?.name ?? ''
+
+/** Shadow-map-only surfaces (foliage masks, caster hulls): never drawn. */
+function isShadowCaster(zone: LoadedZone, mat: any): boolean {
+  return sortKeyOf(zone, mat) === SHADOW_SORT_KEY || /shadowcaster/i.test(techniqueName(zone, mat))
+}
 
 function materialName(zone: LoadedZone, mat: any): string {
   if (!mat) return ''
@@ -156,21 +180,23 @@ export function extractWorldMesh(zone: LoadedZone): WorldMesh | null {
     const n = unpackUnitVec(dv.getUint32(o + 36, true))
     normals[i * 3] = n[0]; normals[i * 3 + 1] = n[2]; normals[i * 3 + 2] = -n[1]
   }
-  const byMaterial = new Map<string, { material: string; lightmap: number; decal: boolean; idx: number[] }>()
+  const byMaterial = new Map<string, { material: string; lightmap: number; decal: boolean; overlay: boolean; idx: number[] }>()
   const drawn: WorldMesh['surfaces'] = []
   let skipped = 0
   for (const s of surfaces) {
     const name = materialName(zone, s.material)
-    if (HIDDEN_MATERIAL.test(name) || sortKeyOf(zone, s.material) === SHADOW_SORT_KEY) { skipped++; continue }
+    if (HIDDEN_MATERIAL.test(name) || isShadowCaster(zone, s.material)) { skipped++; continue }
     const { firstVertex, triCount, baseIndex, vertexCount } = s.tris
     const [cr, cg, cb] = materialColor(name)
     for (let v = firstVertex; v < firstVertex + vertexCount && v < vcount; v++) { colors[v * 3] = cr; colors[v * 3 + 1] = cg; colors[v * 3 + 2] = cb }
     const lmi = s.laf?.fields?.lightmapIndex ?? 255
     const lightmap = lmi < lmCount ? lmi : -1
-    const decal = sortKeyOf(zone, s.material) >= DECAL_SORT_KEY_MIN
+    const sortKey = sortKeyOf(zone, s.material)
+    const decal = sortKey >= LATE_SORT_KEY_MIN && /_b\d/.test(techniqueName(zone, s.material))
+    const overlay = !decal && sortKey >= OVERLAY_SORT_KEY_MIN
     const key = `${name}|${lightmap}`
     let entry = byMaterial.get(key)
-    if (!entry) byMaterial.set(key, entry = { material: name, lightmap, decal, idx: [] })
+    if (!entry) byMaterial.set(key, entry = { material: name, lightmap, decal, overlay, idx: [] })
     const idx = entry.idx
     // game triangles are clockwise; swap two vertices so front faces are counter-clockwise (three.js)
     for (let k = 0; k < triCount * 3; k += 3) {
@@ -244,7 +270,7 @@ export function buildModelGeometry(zone: LoadedZone, model: any, lodIndex = 0): 
     const vdv = new DataView(verts.bytes.buffer, verts.bytes.byteOffset, verts.bytes.byteLength)
     const handle = handles[(lod.surfIndex ?? 0) + si]
     // shadow-caster surfaces (foliage masks, sort key 34) only feed the shadow maps: drawn, they show as white leaves
-    if (sortKeyOf(zone, handle) === SHADOW_SORT_KEY) return
+    if (isShadowCaster(zone, handle)) return
     const matName = materialName(zone, handle)
     const [cr, cg, cb] = materialColor(matName)
     const idxStart = idx.length

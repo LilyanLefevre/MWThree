@@ -54,12 +54,13 @@ function colorTexture(data: TextureData): THREE.Texture {
 
 /** One THREE material per game material name: textured when its color-map image was found, flat color otherwise. */
 /** `worldSurfaces`: the world mesh, whose vertex colors (alpha) fade blended layers; props have none. */
-export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materialNormals' | 'textures' | 'materialBlends'>, names: Iterable<string>, worldSurfaces = false): { map: Map<string, THREE.Material>; textures: THREE.Texture[] } {
+export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materialNormals' | 'textures' | 'materialBlends' | 'opaqueMaterials'>, names: Iterable<string>, worldSurfaces = false): { map: Map<string, THREE.Material>; textures: THREE.Texture[] } {
   const byImage = new Map(world.textures.filter(t => !t.normal).map(t => [t.name, t]))
   const normals = new Map(world.textures.filter(t => t.normal).map(t => [t.name, t]))
   const normalCache = new Map<string, THREE.DataTexture>()
   const texCache = new Map<string, THREE.Texture>()
   const map = new Map<string, THREE.Material>()
+  const opaque = new Set(world.opaqueMaterials)
   for (const name of names) {
     const image = world.materialImages[name]
     const data = image ? byImage.get(image) : undefined
@@ -86,8 +87,9 @@ export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materia
       }
       const blend = world.materialBlends[name]
       if (blend) { map.set(name, blendedMaterial(tex, blend, worldSurfaces)); continue }
+      const cutout = data.hasAlpha && !opaque.has(name)
       map.set(name, new THREE.MeshLambertMaterial({
-        map: tex, alphaTest: data.hasAlpha ? 0.5 : 0, side: data.hasAlpha ? THREE.DoubleSide : THREE.FrontSide,
+        map: tex, alphaTest: cutout ? 0.5 : 0, side: cutout ? THREE.DoubleSide : THREE.FrontSide,
         ...(nTex ? { normalMap: nTex, normalScale: new THREE.Vector2(1, 1) } : {}),
       }))
     } else if (world.materialBlends[name]) {
@@ -182,8 +184,8 @@ export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; 
   const list = world.groups.map(g => {
     const base = lit.map.get(g.material)!
     const lm = g.lightmap !== undefined && g.lightmap >= 0 ? lmTex[g.lightmap] : undefined
-    if ((!lm && !g.decal) || world.materialBlends[g.material]) return base
-    const key = `${g.material}|${g.lightmap}|${g.decal ? 'd' : ''}`
+    if ((!lm && !g.decal && !g.overlay) || world.materialBlends[g.material]) return base
+    const key = `${g.material}|${g.lightmap}|${g.decal ? 'd' : g.overlay ? 'o' : ''}`
     let mat = cache.get(key)
     if (!mat) {
       const src = base as THREE.MeshLambertMaterial
@@ -193,6 +195,8 @@ export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; 
         alphaTest: g.decal ? 0.02 : src.alphaTest, side: src.side,
         // decals are blended over the surface below with the vertex alpha
         ...(g.decal ? { vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {}),
+        // opaque layers over another surface only need to win the depth test
+        ...(g.overlay ? { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {}),
       })
       if (lm) applyLightmapShading(mat, world.sun)
       else mat.onBeforeCompile = addFog

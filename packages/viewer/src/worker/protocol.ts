@@ -80,6 +80,8 @@ export type MapResponse =
       fog: Fog | null
       /** blend mode of the unlit blended materials (world and props), by name */
       materialBlends: Record<string, MaterialBlend>
+      /** lit materials with an opaque technique: their texture alpha is not an opacity */
+      opaqueMaterials: string[]
       objectives: Objective[]
       triggers: TriggerVolume[]
       spawns: SpawnPoint[]

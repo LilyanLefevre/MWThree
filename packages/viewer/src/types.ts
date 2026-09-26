@@ -50,6 +50,7 @@ export interface MapWorld {
   sun: Sun | null
   fog: Fog | null
   materialBlends: Record<string, MaterialBlend>
+  opaqueMaterials: string[]
   objectives: Objective[]
   triggers: TriggerVolume[]
   spawns: SpawnPoint[]
