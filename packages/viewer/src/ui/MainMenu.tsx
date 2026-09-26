@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useImage, type ImageSource } from '../menuImages'
-import { mapCode, mapDisplayName, mapPlace } from '../mapNames'
+import { mapCode, mapDisplayName, mapPlace, loadscreenNames, previewNames } from '../mapNames'
 
 export type MapSource = 'server' | 'local'
 
 function MapCard({ file, images, onPick, onHover }: { file: string; images: ImageSource | null; onPick: () => void; onHover: () => void }) {
   const code = mapCode(file)
-  const thumb = useImage(images, `preview_mp_${code}_lobby`, `preview_mp_${code}`)
+  const thumb = useImage(images, ...previewNames(file))
   return (
     <button className="map-card" onClick={onPick} onMouseEnter={onHover} onFocus={onHover}>
       {thumb && <img src={thumb} alt="" />}
@@ -39,7 +39,7 @@ export function MainMenu({ serverMaps, serverImages, local, localImages, onPickF
   const images = tab === 'server' ? serverImages : localImages
   const [featured, setFeatured] = useState<string | null>(null)
   const shown = featured && maps.includes(featured) ? featured : maps[0] ?? null
-  const backdrop = useImage(images, shown ? `loadscreen_mp_${mapCode(shown)}` : '')
+  const backdrop = useImage(images, ...(shown ? loadscreenNames(shown) : []))
 
   return (
     <div className="ui-root">

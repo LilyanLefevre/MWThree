@@ -21,11 +21,24 @@ const PLACES: Record<string, string> = {
 /** "mp_lambeth.ff" or "lambeth" -> "lambeth". */
 export const mapCode = (fileName: string) => fileName.replace(/^mp_/, '').replace(/\.ff$/, '')
 
-/** "mp_lambeth.ff" -> "Fallen" (falls back to the code name). */
+/** Names of community maps, from their .arena file (`longname`); filled when the maps are listed. */
+const customNames = new Map<string, string>()
+export const registerMapName = (code: string, name: string | undefined) => { if (name) customNames.set(code, name) }
+
+/** "mp_lambeth.ff" -> "Fallen"; community maps use their arena name, else the code ("rust_long" -> "Rust Long"). */
 export function mapDisplayName(fileName: string): string {
   const code = mapCode(fileName)
-  return NAMES[code] ?? code
+  return NAMES[code] ?? customNames.get(code) ?? code.replace(/_/g, ' ').replace(/\b[a-z]/g, c => c.toUpperCase())
 }
+
+/** Loading-screen images to try, best first: community maps often name theirs after a shorter code (mp_rust_long -> loadscreen_mp_rust). */
+export function loadscreenNames(fileName: string): string[] {
+  const parts = mapCode(fileName).split('_')
+  return parts.map((_, i) => `loadscreen_mp_${parts.slice(0, parts.length - i).join('_')}`)
+}
+
+/** Lobby preview, falling back to the loading screen (community maps rarely ship a preview). */
+export const previewNames = (fileName: string) => [`preview_mp_${mapCode(fileName)}_lobby`, `preview_mp_${mapCode(fileName)}`, ...loadscreenNames(fileName)]
 
 /** Loading screen subtitle, empty for unknown maps. */
 export const mapPlace = (fileName: string) => PLACES[mapCode(fileName)] ?? ''

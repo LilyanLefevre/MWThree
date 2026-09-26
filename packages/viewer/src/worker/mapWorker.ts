@@ -167,7 +167,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
     const zoneBuf = await new FastFileLoader(buffer).loadAsync()
     const t1 = performance.now()
     post({ type: 'progress', stage: 'Lecture de la zone (assets)' })
-    const zone = new ZoneLoader(zoneBuf).load()
+    const zone = new ZoneLoader(zoneBuf, { zoneNames: [fileName.replace(/\.ff$/i, '')] }).load()
     const t2 = performance.now()
 
     post({ type: 'progress', stage: 'Construction de la géométrie' })

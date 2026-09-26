@@ -8,7 +8,8 @@ import { StaticModels } from './components/StaticModels'
 import { Sky } from './components/Sky'
 import { setFog } from './components/materials'
 import { UNIT_SCALE } from '@mwthree/iw5-core'
-import type { MapInfo, MapWorld } from './types'
+import type { MapWorld } from './types'
+import { registerMapName } from './mapNames'
 import type { IwdSource, MapResponse, SpawnPoint } from './worker/protocol'
 import { SpawnMarkers } from './components/SpawnMarkers'
 import { Objectives } from './components/Objectives'
@@ -33,55 +34,52 @@ async function listFiles(dir: FileSystemDirectoryHandle, predicate: (name: strin
   return out
 }
 
-async function detectMW3Paths(root: FileSystemDirectoryHandle): Promise<MapInfo> {
-  const maps = new Set<string>()
-  const archives = new Set<string>()
-  for (const n of await listFiles(root, isMapFile)) maps.add(n)
-  for (const n of await listFiles(root, n => n.endsWith('.iwd'))) archives.add(n)
-  try {
-    const zone = await root.getDirectoryHandle('zone')
-    for (const n of await listFiles(zone, isMapFile)) maps.add(n)
-    for await (const entry of entries(zone)) {
-      if (entry.kind !== 'directory') continue
-      const sub = await zone.getDirectoryHandle(entry.name)
-      for (const n of await listFiles(sub, isMapFile)) maps.add(n)
+/** A map found in the player's folder: where it is, and the archives that sit next to it (community maps ship their own). */
+interface LocalMap { dir: FileSystemDirectoryHandle; ownIwd: File[] }
+interface LocalLibrary { maps: Map<string, LocalMap>; mainIwd: IwdSource[] }
+
+/**
+ * Looks for maps in the folder itself, zone/<anything>/, usermaps/<anything>/ and its direct sub-folders (so picking
+ * `usermaps` works too). The base game's archives are the .iwd of the folder and of main/.
+ */
+async function scanLocal(root: FileSystemDirectoryHandle): Promise<LocalLibrary> {
+  const dirs: FileSystemDirectoryHandle[] = []
+  const subDirs = async (dir: FileSystemDirectoryHandle) => {
+    const out: FileSystemDirectoryHandle[] = []
+    for await (const entry of entries(dir)) if (entry.kind === 'directory' && !entry.name.startsWith('.')) out.push(await dir.getDirectoryHandle(entry.name))
+    return out
+  }
+  dirs.push(root)
+  for (const name of ['zone', 'usermaps']) {
+    try { dirs.push(...await subDirs(await root.getDirectoryHandle(name))) } catch { /* absent */ }
+  }
+  try { dirs.push(...(await subDirs(root)).filter(d => !['zone', 'usermaps', 'main'].includes(d.name))) } catch { /* unreadable */ }
+
+  const maps = new Map<string, LocalMap>()
+  for (const dir of dirs) {
+    const files = await listFiles(dir, () => true)
+    const found = files.filter(isMapFile)
+    if (!found.length) continue
+    const ownIwd = dir === root ? [] : await Promise.all(files.filter(n => n.endsWith('.iwd')).map(async n => (await (await dir.getFileHandle(n)).getFile())))
+    for (const file of found) {
+      if (maps.has(file)) continue
+      maps.set(file, { dir, ownIwd })
+      const code = file.replace(/^mp_/, '').replace(/\.ff$/i, '')
+      if (files.includes(`mp_${code}.arena`)) {
+        const text = await (await (await dir.getFileHandle(`mp_${code}.arena`)).getFile()).text()
+        registerMapName(code, /longname\s+"([^"]*)"/i.exec(text)?.[1])
+      }
     }
-  } catch { /* no zone/ */ }
-  try {
-    const main = await root.getDirectoryHandle('main')
-    for (const n of await listFiles(main, n => n.endsWith('.iwd'))) archives.add(n)
-  } catch { /* no main/ */ }
-  return { maps: [...maps].sort(), archives: [...archives].sort(), path: root.name }
-}
-
-async function readMapFile(root: FileSystemDirectoryHandle, fileName: string): Promise<ArrayBuffer> {
-  const tryDir = async (dir: FileSystemDirectoryHandle) => {
-    try { return await (await (await dir.getFileHandle(fileName)).getFile()).arrayBuffer() } catch { return null }
   }
-  let buf = await tryDir(root)
-  if (buf) return buf
-  const zone = await root.getDirectoryHandle('zone')
-  buf = await tryDir(zone)
-  if (buf) return buf
-  for await (const entry of entries(zone)) {
-    if (entry.kind !== 'directory') continue
-    buf = await tryDir(await zone.getDirectoryHandle(entry.name))
-    if (buf) return buf
-  }
-  throw new Error(`${fileName} introuvable`)
-}
-
-/** The .iwd archives of the installation (root and main/), as local files. */
-async function listIwd(root: FileSystemDirectoryHandle): Promise<IwdSource[]> {
-  const out: IwdSource[] = []
+  const mainIwd: IwdSource[] = []
   const collect = async (dir: FileSystemDirectoryHandle) => {
     for await (const entry of entries(dir)) {
-      if (entry.kind === 'file' && entry.name.endsWith('.iwd')) out.push({ file: await (entry as FileSystemFileHandle).getFile() })
+      if (entry.kind === 'file' && entry.name.endsWith('.iwd') && !entry.name.startsWith('.')) mainIwd.push({ file: await (entry as FileSystemFileHandle).getFile() })
     }
   }
   await collect(root)
   try { await collect(await root.getDirectoryHandle('main')) } catch { /* no main/ */ }
-  return out
+  return { maps, mainIwd }
 }
 
 /** Whether the GPU takes S3TC (DXT) textures, sRGB included: the game's images can then skip decoding. */
@@ -138,11 +136,11 @@ async function download(url: string, onProgress: (p: number) => void): Promise<A
   return out.buffer
 }
 
-interface Server { maps: string[] | null; paths: Record<string, string>; iwd: IwdSource[]; images: ImageSource | null }
-interface Local { root: FileSystemDirectoryHandle; info: MapInfo; iwd: IwdSource[]; images: ImageSource | null }
+interface Server { maps: string[] | null; paths: Record<string, string>; ownIwd: Record<string, string[]>; iwd: IwdSource[]; images: ImageSource | null }
+interface Local { name: string; library: LocalLibrary; images: ImageSource | null }
 
 function App() {
-  const [server, setServer] = useState<Server>({ maps: null, paths: {}, iwd: [], images: null })
+  const [server, setServer] = useState<Server>({ maps: null, paths: {}, ownIwd: {}, iwd: [], images: null })
   const [local, setLocal] = useState<Local | null>(null)
   const [session, setSession] = useState<{ source: MapSource; file: string } | null>(null)
   /** loading screen shown until the textures are in (or the map is ready without them) */
@@ -163,14 +161,18 @@ function App() {
   // maps shared by the server that hosts this page (absent on static hosting)
   useEffect(() => {
     Promise.all([
-      fetch('/__inputs-list/maps').then(r => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ code: string; path: string }[] | null>,
+      fetch('/__inputs-list/maps').then(r => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ code: string; name?: string; path: string; iwd: string[] }[] | null>,
       fetch('/__inputs-list/main').then(r => (r.ok ? r.json() : [])).catch(() => []) as Promise<string[]>,
     ]).then(([maps, iwds]) => {
       const iwd = (Array.isArray(iwds) ? iwds : []).map(n => ({ url: `/__inputs/main/${n}` }))
       const list = Array.isArray(maps) ? maps : null
+      for (const m of list ?? []) registerMapName(m.code, m.name)
+      // the menu's images also come from the archives of community maps (their loading screens), listed after the game's
+      const all = [...iwd, ...(list ?? []).flatMap(m => m.iwd).filter((u, i, a) => a.indexOf(u) === i).map(u => ({ url: `/__inputs/${u}` }))]
       setServer({
         maps: list && list.map(m => `mp_${m.code}.ff`), paths: Object.fromEntries((list ?? []).map(m => [`mp_${m.code}.ff`, m.path])),
-        iwd, images: iwd.length ? createImageSource(iwd) : null,
+        ownIwd: Object.fromEntries((list ?? []).map(m => [`mp_${m.code}.ff`, m.iwd])),
+        iwd, images: all.length ? createImageSource(all) : null,
       })
     })
   }, [])
@@ -214,20 +216,24 @@ function App() {
         const path = server.paths[file]
         if (!path) throw new Error(`${file} n'est pas sur le serveur`)
         const buffer = await download(`/__inputs/${path}`, p => setProgress(0.35 * p))
-        runWorker(buffer, file, server.iwd)
+        runWorker(buffer, file, [...server.iwd, ...(server.ownIwd[file] ?? []).map(u => ({ url: `/__inputs/${u}` }))])
       } else if (local) {
         setStage('Lecture du fichier')
-        runWorker(await readMapFile(local.root, file), file, local.iwd)
+        const entry = local.library.maps.get(file)
+        if (!entry) throw new Error(`${file} introuvable`)
+        const buffer = await (await (await entry.dir.getFileHandle(file)).getFile()).arrayBuffer()
+        runWorker(buffer, file, [...local.library.mainIwd, ...entry.ownIwd.map(f => ({ file: f }))])
       }
     } catch (e) { toMenu(e instanceof Error ? e.message : String(e)) }
-  }, [toMenu, runWorker, server.iwd, server.paths, local])
+  }, [toMenu, runWorker, server.iwd, server.paths, server.ownIwd, local])
 
   const pickFolder = useCallback(async () => {
     try {
       const root = await (window as unknown as { showDirectoryPicker(): Promise<FileSystemDirectoryHandle> }).showDirectoryPicker()
-      const [info, iwd] = await Promise.all([detectMW3Paths(root), listIwd(root)])
-      setLocal({ root, info, iwd, images: iwd.length ? createImageSource(iwd) : null })
-      setError(info.maps.length ? null : `Aucune map (mp_*.ff) trouvée dans « ${root.name} ».`)
+      const library = await scanLocal(root)
+      const all = [...library.mainIwd, ...[...library.maps.values()].flatMap(m => m.ownIwd).map(f => ({ file: f }))]
+      setLocal({ name: root.name, library, images: all.length ? createImageSource(all) : null })
+      setError(library.maps.size ? null : `Aucune map (mp_*.ff) trouvée dans « ${root.name} ».`)
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'AbortError')) setError(e instanceof Error ? e.message : String(e))
     }
@@ -302,7 +308,7 @@ function App() {
       {loading && session && <LoadingScreen file={session.file} images={images} stage={stage} progress={progress} />}
       {!session && (
         <MainMenu serverMaps={server.maps} serverImages={server.images}
-          local={local && { name: local.info.path, maps: local.info.maps }} localImages={local?.images ?? null}
+          local={local && { name: local.name, maps: [...local.library.maps.keys()].sort() }} localImages={local?.images ?? null}
           onPickFolder={pickFolder} onLoad={start} error={error} />
       )}
     </div>
