@@ -92,6 +92,7 @@ flowchart TD
 ```
 
 - Capsule : rayon 0,35 m, hauteur 1,6 m ; marche 4,8 m/s (sprint ×1,5), saut 6,5 m/s.
+- **Déplacement** : le joueur est un corps cinématique mû par le contrôleur de personnage de Rapier (`Player.tsx`) : marche automatique jusqu'à 0,46 m (la hauteur de marche du jeu : seuils, bordures, barres basses), adhérence au sol, glissement le long des murs, pente maximale de 50°.
 - **V** : vol libre (collisions désactivées) pour inspecter la map.
 ![Collision affichée avec C](images/screens/dome-collision.jpg)
 
@@ -100,7 +101,7 @@ flowchart TD
   - chaque brush est converti en polyèdre (intersection des triples de plans, filtrage des points intérieurs, tri des sommets de chaque face) puis triangulé ;
   - les triangles de terrain de `clipMap_t` (`verts`, `triIndices`) sont ajoutés ;
   - les triangles de collision (terrain, patchs, collision de modèles cuite) sont indexés par partition, avec un décalage de `firstVertSegment × 1024` sommets (sans lui, `mp_seatown` avait 12 005 triangles mal placés : des murs invisibles) ;
-  - les brushes des objets de mode de jeu (caisses du QG, zones de bombe, sabotage, palettes de largage : sous-modèles `*N` des entités avec `script_gameobjectname`) sont retirés, comme quand leur mode n'est pas joué ;
+  - les brushes de tous les sous-modèles `*N` (objets de mode de jeu, déclencheurs, portes : stockés en coordonnées locales et placés par leur entité) sont retirés de la collision statique ;
   - les modèles statiques (`clipMap_t.staticModelList`) n'en font **pas** partie : le moteur ne les teste qu'avec des tracés ponctuels (balles, lignes de visée), jamais avec la boîte du joueur ; les cartes les entourent de brushes de clip là où ils doivent bloquer. Leur ancienne prise en compte (LOD le plus grossier) créait des murs invisibles (herbes hautes, linge, fils, assiettes de `mp_seatown`) ;
   - le tout forme un seul trimesh Rapier (`mp_dome` : 6 053 brushes + 2 132 props, ≈ 270 000 triangles).
 

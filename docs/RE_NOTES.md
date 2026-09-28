@@ -170,6 +170,23 @@ Les arbres (et d'autres feuillages) contiennent une surface au matériau `mc/mtl
 `mc_shadowcaster_atest`, `sortKey` 34) : un masque blanc à la forme du feuillage, qui ne sert qu'aux ombres. Comme pour le monde,
 ces surfaces ne sont pas dessinées (sinon : feuilles blanches par-dessus le vrai feuillage, ex. `mp_paris`).
 
+### Alpha des textures, mode d'un matériau, sous-modèles solides (maps custom)
+
+- Le nom du technique set donne le mode d'un matériau lit : `_r0c…` **opaque** (replace), `_t0c…` **alpha-testé**, `_b0c…` **mélangé**.
+  Dans les maps du jeu, une texture d'un matériau opaque a presque toujours un alpha à 255 ; dans celles de ZoneTool l'alpha d'une
+  texture opaque porte autre chose (brillance) et le tester troue les surfaces (le fond du ciel apparaît à travers : `mp_rust_long`,
+  tôles rouillées, sols). `extractOpaqueMaterials` liste ces matériaux ; le viewer ne les alpha-teste pas.
+- `sortKey` : le jeu numérote 1 (opaque), 6-9 (calques, décalques), 29 (halos), 34 (shadow caster). ZoneTool en met d'autres (un mur
+  opaque en 6, le shadow caster en 35) : un décalque est donc `sortKey ≥ 6` **et** technique `_b…`, et le shadow caster se reconnaît à
+  `shadowcaster` dans le nom du technique set. Les surfaces opaques de `sortKey ≥ 7` (panneaux, taches) sont des *overlays* : seulement
+  un décalage de profondeur, sans mélange.
+- **Les brushes des sous-modèles `*N` sont en coordonnées locales** (autour de 0,0,0) et placés par l'`origin` de leur entité
+  (`script_brushmodel`, déclencheurs `trigger_*`) : on les exclut tous de la collision statique. Les maps du jeu leur donnent des
+  contenus non solides, mais les maps ZoneTool ont des déclencheurs en `0x8000001` (SOLID | DETAIL) : empilés à l'origine.
+- **Hauteur de marche** : le jeu enjambe les obstacles de 18 unités (0,46 m, `STEPSIZE`). Seuil d'un conteneur de `mp_shipment`
+  (+0,21 m), barres basses, bordures et gravats bloquaient une capsule sans montée de marche : le viewer utilise donc le
+  `KinematicCharacterController` de Rapier (autostep 0,46 m, adhérence au sol 0,3 m, pente max 50°).
+
 ### Collision des modèles statiques
 
 `clipMap_t.staticModelList` liste les modèles statiques (avec `XModel.contents`, `collLod`, `collSurfs`), mais le moteur ne les
