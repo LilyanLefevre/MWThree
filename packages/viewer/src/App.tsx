@@ -136,11 +136,17 @@ async function download(url: string, onProgress: (p: number) => void): Promise<A
   return out.buffer
 }
 
-interface Server { maps: string[] | null; paths: Record<string, string>; ownIwd: Record<string, string[]>; iwd: IwdSource[]; images: ImageSource | null }
+/** A map offered by the server: where to download it and the archives that come with it (full URLs). */
+interface ServerMap { url: string; iwd: string[] }
+interface Server { maps: string[] | null; byFile: Record<string, ServerMap>; iwd: IwdSource[]; images: ImageSource | null }
+interface MapListing { code: string; name?: string; path: string; iwd: string[] }
+
+const BASE = import.meta.env.BASE_URL
+const getJson = async <T,>(url: string): Promise<T | null> => { try { const r = await fetch(url); return r.ok ? await r.json() as T : null } catch { return null } }
 interface Local { name: string; library: LocalLibrary; images: ImageSource | null }
 
 function App() {
-  const [server, setServer] = useState<Server>({ maps: null, paths: {}, ownIwd: {}, iwd: [], images: null })
+  const [server, setServer] = useState<Server>({ maps: null, byFile: {}, iwd: [], images: null })
   const [local, setLocal] = useState<Local | null>(null)
   const [session, setSession] = useState<{ source: MapSource; file: string } | null>(null)
   /** loading screen shown until the textures are in (or the map is ready without them) */
@@ -158,22 +164,31 @@ function App() {
   const [spawnIndex, setSpawnIndex] = useState(0)
   const worker = useRef<Worker | null>(null)
 
-  // maps shared by the server that hosts this page (absent on static hosting)
+  // maps offered by the page's host: the ones shipped with the project (in the build, also on static hosting), then those of
+  // the folder the server shares (dev and `vite preview` only); a code found twice keeps the shipped one
   useEffect(() => {
     Promise.all([
-      fetch('/__inputs-list/maps').then(r => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ code: string; name?: string; path: string; iwd: string[] }[] | null>,
-      fetch('/__inputs-list/main').then(r => (r.ok ? r.json() : [])).catch(() => []) as Promise<string[]>,
-    ]).then(([maps, iwds]) => {
-      const iwd = (Array.isArray(iwds) ? iwds : []).map(n => ({ url: `/__inputs/main/${n}` }))
-      const list = Array.isArray(maps) ? maps : null
-      for (const m of list ?? []) registerMapName(m.code, m.name)
-      // the menu's images also come from the archives of community maps (their loading screens), listed after the game's
-      const all = [...iwd, ...(list ?? []).flatMap(m => m.iwd).filter((u, i, a) => a.indexOf(u) === i).map(u => ({ url: `/__inputs/${u}` }))]
-      setServer({
-        maps: list && list.map(m => `mp_${m.code}.ff`), paths: Object.fromEntries((list ?? []).map(m => [`mp_${m.code}.ff`, m.path])),
-        ownIwd: Object.fromEntries((list ?? []).map(m => [`mp_${m.code}.ff`, m.iwd])),
-        iwd, images: all.length ? createImageSource(all) : null,
-      })
+      getJson<MapListing[]>(`${BASE}maps/manifest.json`),
+      getJson<MapListing[]>(`${BASE}__inputs-list/maps`),
+      getJson<string[]>(`${BASE}__inputs-list/main`),
+    ]).then(([shipped, shared, mainIwd]) => {
+      const byFile: Record<string, ServerMap> = {}
+      const images: IwdSource[] = []
+      const add = (list: MapListing[] | null, prefix: string) => {
+        for (const m of Array.isArray(list) ? list : []) {
+          const file = `mp_${m.code}.ff`
+          if (byFile[file]) continue
+          byFile[file] = { url: `${BASE}${prefix}${m.path}`, iwd: m.iwd.map(u => `${BASE}${prefix}${u}`) }
+          registerMapName(m.code, m.name)
+          images.push(...byFile[file].iwd.map(url => ({ url })))
+        }
+      }
+      add(shipped, 'maps/')
+      add(shared, '__inputs/')
+      const iwd = (Array.isArray(mainIwd) ? mainIwd : []).map(n => ({ url: `${BASE}__inputs/main/${n}` }))
+      const files = Object.keys(byFile)
+      // the menu's images: the game's archives first, then the community maps' own (their loading screens)
+      setServer({ maps: shipped || shared ? files : null, byFile, iwd, images: iwd.length + images.length ? createImageSource([...iwd, ...images]) : null })
     })
   }, [])
 
@@ -213,10 +228,12 @@ function App() {
     setSession({ source, file }); setLoading(true); setProgress(0); setStage('Téléchargement')
     try {
       if (source === 'server') {
-        const path = server.paths[file]
-        if (!path) throw new Error(`${file} n'est pas sur le serveur`)
-        const buffer = await download(`/__inputs/${path}`, p => setProgress(0.35 * p))
-        runWorker(buffer, file, [...server.iwd, ...(server.ownIwd[file] ?? []).map(u => ({ url: `/__inputs/${u}` }))])
+        const entry = server.byFile[file]
+        if (!entry) throw new Error(`${file} n'est pas sur le serveur`)
+        const buffer = await download(entry.url, p => setProgress(0.35 * p))
+        // base textures: the server's copy of the game if it has one, else the visitor's own folder (never shipped)
+        const game = server.iwd.length ? server.iwd : local?.library.mainIwd ?? []
+        runWorker(buffer, file, [...game, ...entry.iwd.map(url => ({ url }))])
       } else if (local) {
         setStage('Lecture du fichier')
         const entry = local.library.maps.get(file)
@@ -225,7 +242,7 @@ function App() {
         runWorker(buffer, file, [...local.library.mainIwd, ...entry.ownIwd.map(f => ({ file: f }))])
       }
     } catch (e) { toMenu(e instanceof Error ? e.message : String(e)) }
-  }, [toMenu, runWorker, server.iwd, server.paths, server.ownIwd, local])
+  }, [toMenu, runWorker, server.iwd, server.byFile, local])
 
   const pickFolder = useCallback(async () => {
     try {
@@ -307,7 +324,7 @@ function App() {
       )}
       {loading && session && <LoadingScreen file={session.file} images={images} stage={stage} progress={progress} />}
       {!session && (
-        <MainMenu serverMaps={server.maps} serverImages={server.images}
+        <MainMenu serverMaps={server.maps} serverImages={server.images} serverHasGame={server.iwd.length > 0 || !!local?.library.mainIwd.length}
           local={local && { name: local.name, maps: [...local.library.maps.keys()].sort() }} localImages={local?.images ?? null}
           onPickFolder={pickFolder} onLoad={start} error={error} />
       )}
