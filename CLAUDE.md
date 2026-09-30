@@ -1,7 +1,7 @@
 # MWThree
 
 Explorateur MW3 (2011) jouable dans le navigateur, construit en parsant les fichiers du jeu de l'utilisateur.
-Usage strictement local : les fichiers du jeu (`inputs/`, ignoré par git) ne sont jamais commités ni redistribués.
+Les fichiers du jeu d'Activision (`inputs/`, ignoré par git) ne sont jamais commités ni redistribués ; textures de base comprises. Seules exceptions : les maps de la communauté de `maps/` (redistribuables selon leurs auteurs, voir `maps/CREDITS.md`).
 Les captures du viewer, elles, sont les bienvenues dans `docs/images/screens/` et le README.
 
 Lire d'abord `docs/SESSION_REFERENCE.md` (état, commandes, prochaines étapes), puis `docs/RE_NOTES.md` (format des zones,

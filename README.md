@@ -2,7 +2,7 @@
 
 Reconstruit un Call of Duty MW3 (2011) jouable dans le navigateur en parsant les fichiers de jeu originaux.
 
-⚠️ **Usage strictement local** — aucun asset n'est redistribué. L'utilisateur doit pointer vers sa propre installation MW3.
+⚠️ **Aucun fichier d'Activision n'est redistribué.** Deux maps de la communauté sont incluses (`maps/`, voir `maps/CREDITS.md`) ; pour voir les maps complètes (textures de base du jeu) et les 16 maps officielles, il faut fournir sa propre installation MW3.
 
 ![Dome dans le viewer](docs/images/screens/dome-hero.jpg)
 
@@ -63,42 +63,43 @@ npm run dev
 ```
 
 Ouvre `http://localhost:5173` sur le menu :
-- onglet **Serveur** : les maps de `inputs/zone/<map>/mp_<map>.ff` de la machine qui lance le serveur ;
-- onglet **Mes fichiers** : choisir son installation MW3 (ou un dossier contenant `zone/<map>/mp_<map>.ff` et `main/*.iwd`) ;
+- onglet **Serveur** : les deux maps incluses (`maps/`) et, si présent, le dossier partagé par le serveur (`inputs/` ou `$MWTHREE_INPUTS`) ;
+- onglet **Mes fichiers** : choisir son installation MW3 (ou un dossier contenant `zone/<map>/mp_<map>.ff` et `main/*.iwd`). Ses archives
+  texturent aussi les maps incluses ;
 - en jeu : clic = capture souris, ZQSD/WASD, Espace, Maj, **V** = vol libre, **T** = spawn suivant, **Échap** = menu pause (commandes, calques) ;
 - `?map=dome` ouvre directement une map du serveur.
 
-### Release locale (partager ses maps sur le réseau)
+### Maps incluses et dossier de déploiement
+
+Le projet embarque deux maps de la communauté, **Shipment** et **Rust: Long** (`maps/`, crédits dans `maps/CREDITS.md`) : elles sont
+copiées dans le build et disponibles pour tous les visiteurs, sur n'importe quel hébergement (même statique). Elles n'ont pas les textures
+de base du jeu (qui appartiennent à Activision et ne sont jamais distribuées) : sans elles, elles s'affichent en couleurs de remplacement.
+
+Au déploiement, un **dossier supplémentaire est facultatif** : une installation MW3 (`zone/`, `main/*.iwd`) ou n'importe quel dossier d'autres
+maps (`usermaps/<map>/` pour les maps custom avec leur `.iwd`). Le serveur le partage en lecture seule avec ses visiteurs ; ses archives
+`main/*.iwd` texturent alors toutes les maps. Un visiteur peut aussi donner son propre dossier depuis le menu, sans rien envoyer au serveur.
 
 ```bash
-npm run build                                          # iw5-core puis le viewer
-npm run preview -w packages/viewer -- --host           # http://<ip-de-la-machine>:4173
+scripts/deploy.sh                                    # maps incluses seulement
+scripts/deploy.sh --folder "/chemin/vers/MW3"        # + un dossier partagé
+scripts/deploy.sh --folder DIR --port 8080 --name mwthree
 ```
 
-`vite preview` sert le build **et** les fichiers de `inputs/` de la machine aux autres appareils du réseau local (rien n'est publié
-sur internet). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il n'y a alors pas d'onglet Serveur,
-chacun charge son propre dossier MW3.
-
-### Maps de la communauté
-
-Les maps custom pour serveurs privés (FastFiles ZoneTool/Plutonium) se chargent comme les autres : déposez leur dossier dans
-`inputs/usermaps/<map>/` (`mp_<map>.ff`, `.iwd`, `_load.iwd`, `.arena`), ou choisissez-le via « Mes fichiers ». Elles apparaissent dans le
-menu avec leur nom d'arène. Testées : `mp_shipment` et `mp_rust_long`. Ces fichiers restent sur votre machine : n'hébergez que des maps
-dont l'auteur autorise la redistribution.
+Sans Docker : `npm run build`, puis `MWTHREE_INPUTS="/chemin/vers/MW3" npm run preview -w packages/viewer -- --host` (sans la variable, le
+serveur partage `inputs/` s'il existe). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il offre les
+deux maps incluses, et chaque visiteur peut y ajouter son dossier MW3.
 
 ### Docker
 
-L'image sert le viewer et partage le dossier de jeu monté sur `/data` (une installation MW3 telle quelle : `zone/<langue>/mp_*.ff`
-et `main/*.iwd`, ou la disposition `inputs/` du dépôt) :
-
 ```bash
-docker run -d -p 4173:4173 -v "/chemin/vers/Call of Duty Modern Warfare 3:/data:ro" ghcr.io/lilyanlefevre/mwthree:latest
-# ou, depuis le dépôt :
-MW3_DIR="/chemin/vers/MW3" docker compose up -d --build
+docker run -d -p 4173:4173 ghcr.io/lilyanlefevre/mwthree:latest                                              # maps incluses
+docker run -d -p 4173:4173 -v "/chemin/vers/MW3:/data:ro" ghcr.io/lilyanlefevre/mwthree:latest               # + un dossier
+MW3_DIR="/chemin/vers/MW3" docker compose up -d --build                                                       # depuis le dépôt
 ```
 
 La CI (GitHub Actions) vérifie chaque push (tests, typage, lint, build) et publie l'image sur GHCR : `latest` depuis `main`,
-la version depuis les tags `v*`.
+la version depuis les tags `v*`. Les maps de la communauté se lisent en CI (`BundledMaps.test.ts`) : le format ZoneTool est couvert
+sans fichiers du jeu.
 
 ### Build complet (tous les packages)
 
