@@ -12,3 +12,4 @@ inputs/
 .opencode/
 .playwright-cli/
 .claude/settings.local.json
+extra-maps/
