@@ -94,10 +94,12 @@ function bundledMaps(): Plugin {
     name: 'bundled-maps',
     configureServer: server => install(server.middlewares),
     generateBundle() {
-      const entries = manifest()
+      // Shipped under a .zip name: static hosts (GitHub Pages) gzip unknown types such as .iwd/.ff when the browser accepts it, which
+      // changes Content-Length and breaks the range reads of the archives; already-compressed types are left alone.
+      const entries = manifest().map(e => ({ ...e, path: `${e.path}.zip`, iwd: e.iwd.map(p => `${p}.zip`) }))
       this.emitFile({ type: 'asset', fileName: 'maps/manifest.json', source: JSON.stringify(entries) })
-      for (const e of entries) for (const rel of [e.path, ...e.iwd]) {
-        this.emitFile({ type: 'asset', fileName: `maps/${rel}`, source: readFileSync(join(root, rel)) })
+      for (const e of manifest()) for (const rel of [e.path, ...e.iwd]) {
+        this.emitFile({ type: 'asset', fileName: `maps/${rel}.zip`, source: readFileSync(join(root, rel)) })
       }
     },
   }
