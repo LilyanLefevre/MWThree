@@ -10,4 +10,6 @@ services:
       - "${PORT:-4173}:4173"
     volumes:
       - "${MW3_DIR:-./extra-maps}:/data:ro"
+    environment:
+      MWTHREE_PASSWORD: "${MWTHREE_PASSWORD:-}"   # optional: protects the whole site (HTTP Basic)
     restart: unless-stopped

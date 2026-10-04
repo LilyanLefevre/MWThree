@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, normalize } from 'node:path'
 import { defineConfig, type Connect, type Plugin } from 'vite'
@@ -76,6 +77,33 @@ function resolveUnder(root: string, url: string | undefined, types: RegExp): str
 }
 
 /**
+ * Optional access control for a private instance: with MWTHREE_PASSWORD set, every request (page, maps, shared folder) needs
+ * HTTP Basic credentials with that password (any user name). Unlike a script on the page, it protects the files themselves.
+ * Meant for `vite preview` (and dev); a static host such as GitHub Pages cannot do this.
+ */
+function accessPassword(): Plugin {
+  const password = process.env.MWTHREE_PASSWORD
+  const digest = (v: string) => createHash('sha256').update(v).digest()
+  const install = (middlewares: Connect.Server) => {
+    if (!password) return
+    const expected = digest(password)
+    middlewares.use((req, res, next) => {
+      const header = req.headers.authorization ?? ''
+      const given = header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString().split(':').slice(1).join(':') : null
+      if (given !== null && timingSafeEqual(digest(given), expected)) return next()
+      res.statusCode = 401
+      res.setHeader('WWW-Authenticate', 'Basic realm="MWThree", charset="UTF-8"')
+      res.end('Authentication required')
+    })
+  }
+  return {
+    name: 'access-password',
+    configureServer: server => install(server.middlewares),
+    configurePreviewServer: server => install(server.middlewares),
+  }
+}
+
+/**
  * The maps shipped with the project (`maps/`, community maps redistributed with their authors' permission): served at /maps/
  * with a manifest in dev and `vite preview`, and copied into the build, so any static host serves them too.
  */
@@ -134,7 +162,7 @@ function localInputs(): Plugin {
 export default defineConfig({
   // under a sub-path (GitHub Pages: /<repository>/), set VITE_BASE=/<repository>/ when building
   base: process.env.VITE_BASE ?? '/',
-  plugins: [react(), bundledMaps(), localInputs()],
+  plugins: [react(), accessPassword(), bundledMaps(), localInputs()],
   worker: { format: 'es' },
   optimizeDeps: { exclude: ['@dimforge/rapier3d-compat'] },
 })
