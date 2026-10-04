@@ -130,6 +130,8 @@ function localInputs(): Plugin {
 }
 
 export default defineConfig({
+  // under a sub-path (GitHub Pages: /<repository>/), set VITE_BASE=/<repository>/ when building
+  base: process.env.VITE_BASE ?? '/',
   plugins: [react(), bundledMaps(), localInputs()],
   worker: { format: 'es' },
   optimizeDeps: { exclude: ['@dimforge/rapier3d-compat'] },

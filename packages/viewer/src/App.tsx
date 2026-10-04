@@ -142,6 +142,7 @@ interface Server { maps: string[] | null; byFile: Record<string, ServerMap>; iwd
 interface MapListing { code: string; name?: string; path: string; iwd: string[] }
 
 const BASE = import.meta.env.BASE_URL
+const STATIC = !!import.meta.env.VITE_STATIC
 const getJson = async <T,>(url: string): Promise<T | null> => { try { const r = await fetch(url); return r.ok ? await r.json() as T : null } catch { return null } }
 interface Local { name: string; library: LocalLibrary; images: ImageSource | null }
 
@@ -169,8 +170,9 @@ function App() {
   useEffect(() => {
     Promise.all([
       getJson<MapListing[]>(`${BASE}maps/manifest.json`),
-      getJson<MapListing[]>(`${BASE}__inputs-list/maps`),
-      getJson<string[]>(`${BASE}__inputs-list/main`),
+      // a static build (VITE_STATIC=1, e.g. GitHub Pages) has no shared folder: skip the requests that would 404
+      STATIC ? null : getJson<MapListing[]>(`${BASE}__inputs-list/maps`),
+      STATIC ? null : getJson<string[]>(`${BASE}__inputs-list/main`),
     ]).then(([shipped, shared, mainIwd]) => {
       const byFile: Record<string, ServerMap> = {}
       const images: IwdSource[] = []
