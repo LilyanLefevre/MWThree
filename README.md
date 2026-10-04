@@ -4,6 +4,8 @@ Reconstruit un Call of Duty MW3 (2011) jouable dans le navigateur en parsant les
 
 ⚠️ **Aucun fichier d'Activision n'est redistribué.** Deux maps de la communauté sont incluses (`maps/`, voir `maps/CREDITS.md`) ; pour voir les maps complètes (textures de base du jeu) et les 16 maps officielles, il faut fournir sa propre installation MW3.
 
+**Démo en ligne : https://lilyanlefevre.github.io/MWThree/** (les deux maps incluses ; ajoutez votre dossier MW3 depuis le menu pour les texturer).
+
 ![Dome dans le viewer](docs/images/screens/dome-hero.jpg)
 
 | Menu : maps du serveur ou de votre dossier | Écran de chargement de la map |
@@ -89,6 +91,8 @@ scripts/deploy.sh --folder DIR --port 8080 --name mwthree
 partagé) et le publie à chaque push sur `main`. Réglage unique : *Settings → Pages → Source : GitHub Actions*. Ajouter une map à la démo =
 déposer son dossier dans `maps/`, la déclarer dans `maps/CREDITS.md` et pousser (limites de Pages : 1 Go pour le site, moins de 100 Mo par
 fichier ; seules des maps redistribuables, le site est public). Sous un autre préfixe : `VITE_BASE=/chemin/ npm run build`.
+Le build publie les maps sous des noms `.zip` : Pages compresserait sinon les `.iwd`/`.ff` pour les navigateurs, ce qui fausse les
+lectures par plages des archives (testé en ligne).
 
 Sans Docker : `npm run build`, puis `MWTHREE_INPUTS="/chemin/vers/MW3" npm run preview -w packages/viewer -- --host` (sans la variable, le
 serveur partage `inputs/` s'il existe). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il offre les
