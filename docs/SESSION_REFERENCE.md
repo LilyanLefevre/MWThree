@@ -88,3 +88,7 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 - Physique Rapier3D ; fichiers locaux uniquement (File System Access API), aucun asset redistribué.
 - Les structs/règles viennent d'OpenAssetTools : on ne les réécrit pas à la main, on les compile (`genSchema.mjs`).
 - Repère scène : `(x, z, −y) × 0.0254` (mètres, Y haut).
+
+## Pack de textures pour instance privée
+
+`npx tsx scripts/makeTexturePack.mts dome hardhat shipment rust_long` extrait des `inputs/main/*.iwd` seulement les images utilisées par ces maps (`private-pack/main/pack.iwd`, ~250 Mo) et copie les `.ff` des maps officielles (`private-pack/zone/`). Dossier ignoré par git, à déployer avec `scripts/deploy.sh --folder private-pack --password …` ; ne jamais le publier (Pages, GHCR, release).
