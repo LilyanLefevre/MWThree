@@ -105,10 +105,10 @@ function App() {
       if (m.type === 'progress') setStage(m.stage)
       else if (m.type === 'error') { setError(m.message); setLoading(null); w.terminate() }
       else if (m.type === 'textures') {
-        setWorld(prev => prev && { ...prev, textures: m.textures, materialImages: m.materialImages, stats: { ...prev.stats, textures: m.textures.length } })
+        setWorld(prev => prev && { ...prev, textures: m.textures, materialImages: m.materialImages, materialNormals: m.materialNormals, stats: { ...prev.stats, textures: m.textures.length } })
         setStage(''); setTexturing(false); w.terminate()
       } else {
-        setWorld({ ...m, materialImages: {}, textures: [] }); setLoading(null)
+        setWorld({ ...m, materialImages: {}, materialNormals: {}, textures: [] }); setLoading(null)
         setTexturing(iwd.length > 0)
         if (iwd.length === 0) w.terminate()
         ;(window as unknown as { __mapStats?: unknown }).__mapStats = m.stats
@@ -183,7 +183,7 @@ function App() {
             <div style={{ color: '#6f6' }}>✓ {world.fileName}</div>
             <div>{(world.indices.length / 3).toLocaleString()} triangles · {world.stats.surfaces.toLocaleString()} surfaces</div>
             <div>{world.stats.entities.toLocaleString()} entités · {world.spawns.length} spawns</div>
-            <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles){world.textures.length > 0 && ` · ${world.textures.length} textures`}</div>
+            <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles){world.textures.length > 0 && ` · ${world.textures.filter(t => !t.normal).length} textures`}</div>
             <div>dont {world.stats.entityProps} issus d'entités ({world.stats.missingEntityModels} modèles absents)</div>
             <div style={{ color: '#aaa' }}>
               décompression {world.stats.msDecompress} ms · lecture {world.stats.msParse} ms

@@ -3,8 +3,10 @@ import { materialColor } from '@mwthree/iw5-core'
 import type { MapWorld } from '../types'
 
 /** One THREE material per game material name: textured when its color-map image was found, flat color otherwise. */
-export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'textures'>, names: Iterable<string>): { map: Map<string, THREE.Material>; textures: THREE.Texture[] } {
-  const byImage = new Map(world.textures.map(t => [t.name, t]))
+export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materialNormals' | 'textures'>, names: Iterable<string>): { map: Map<string, THREE.Material>; textures: THREE.Texture[] } {
+  const byImage = new Map(world.textures.filter(t => !t.normal).map(t => [t.name, t]))
+  const normals = new Map(world.textures.filter(t => t.normal).map(t => [t.name, t]))
+  const normalCache = new Map<string, THREE.DataTexture>()
   const texCache = new Map<string, THREE.DataTexture>()
   const map = new Map<string, THREE.Material>()
   for (const name of names) {
@@ -23,15 +25,31 @@ export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'texture
         tex.needsUpdate = true
         texCache.set(data.name, tex)
       }
+      const nImage = world.materialNormals[name]
+      const nData = nImage ? normals.get(nImage) : undefined
+      let nTex: THREE.DataTexture | undefined
+      if (nData) {
+        nTex = normalCache.get(nData.name)
+        if (!nTex) {
+          nTex = new THREE.DataTexture(new Uint8Array(nData.rgba.buffer, nData.rgba.byteOffset, nData.rgba.byteLength), nData.width, nData.height, THREE.RGBAFormat)
+          nTex.wrapS = nTex.wrapT = THREE.RepeatWrapping
+          nTex.magFilter = THREE.LinearFilter
+          nTex.minFilter = THREE.LinearMipmapLinearFilter
+          nTex.generateMipmaps = true
+          nTex.needsUpdate = true
+          normalCache.set(nData.name, nTex)
+        }
+      }
       map.set(name, new THREE.MeshLambertMaterial({
         map: tex, alphaTest: data.hasAlpha ? 0.5 : 0, side: data.hasAlpha ? THREE.DoubleSide : THREE.FrontSide,
+        ...(nTex ? { normalMap: nTex, normalScale: new THREE.Vector2(1, 1) } : {}),
       }))
     } else {
       const [r, g, b] = materialColor(name)
       map.set(name, new THREE.MeshLambertMaterial({ color: new THREE.Color(r, g, b) }))
     }
   }
-  return { map, textures: [...texCache.values()] }
+  return { map, textures: [...texCache.values(), ...normalCache.values()] }
 }
 
 /** World materials: lightmapped surfaces use an unlit material whose light comes from the lightmap atlas. */

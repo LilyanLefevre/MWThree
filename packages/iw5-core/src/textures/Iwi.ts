@@ -27,7 +27,7 @@ const FORMATS: Record<number, { kind: 'dxt'; dxt: DxtKind } | { kind: 'raw'; bpp
  * Decode an IWi image to RGBA8. Mip levels are stored smallest first (the top mip is last);
  * `maxSize` picks the largest level whose sides are both <= maxSize (to bound memory).
  */
-export function parseIwi(data: Uint8Array, maxSize = Infinity): IwiImage {
+export function parseIwi(data: Uint8Array, maxSize = Infinity, asNormalMap = false): IwiImage {
   if (data[0] !== 0x49 || data[1] !== 0x57 || data[2] !== 0x69) throw new Error('not an IWi file')
   if (data[3] !== 8) throw new Error(`unsupported IWi version ${data[3]}`)
   const dv = new DataView(data.buffer, data.byteOffset, data.byteLength)
@@ -66,5 +66,21 @@ export function parseIwi(data: Uint8Array, maxSize = Infinity): IwiImage {
       else { rgba[o] = rgba[o + 1] = rgba[o + 2] = 255; rgba[o + 3] = src[s] }
     }
   }
+  if (asNormalMap) toNormalMap(rgba)
   return { width, height, rgba, format, flags, mipCount: levels.length - pick }
+}
+
+/**
+ * IW normal maps are DXT5nm: X in alpha, Y in green, Z implicit. Rewrite them in place as a regular
+ * RGB tangent-space map (the green channel is flipped: the game uses a Y-down convention).
+ */
+export function toNormalMap(rgba: Uint8Array): void {
+  for (let i = 0; i < rgba.length; i += 4) {
+    const x = rgba[i + 3] / 127.5 - 1, y = rgba[i + 1] / 127.5 - 1
+    const z = Math.sqrt(Math.max(0, 1 - x * x - y * y))
+    rgba[i] = (x * 0.5 + 0.5) * 255
+    rgba[i + 1] = (-y * 0.5 + 0.5) * 255
+    rgba[i + 2] = (z * 0.5 + 0.5) * 255
+    rgba[i + 3] = 255
+  }
 }
