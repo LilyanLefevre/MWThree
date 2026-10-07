@@ -18,7 +18,9 @@ flowchart LR
 
 Chaque **surface** référence une plage de sommets (`firstVertex`, `vertexCount`) et une plage d'indices (`baseIndex`, `triCount`) ; les indices sont relatifs à `firstVertex`. Un sommet (`GfxWorldVertex`, 44 octets) contient position, couleur, coordonnées de texture, coordonnées de lightmap, normale et tangente packées sur 4 octets chacune.
 
-Les surfaces sont regroupées **par matériau** (un groupe d'indices par matériau) ; chaque matériau reçoit la texture de sa *color map* si elle a été trouvée, sinon une couleur de debug dérivée du nom. Les textures sont chargées après la géométrie : la map est explorable tout de suite, puis se texture. Les images avec transparence (feuillage, grillages) utilisent un alpha-test à 0,5. Pas encore d'éclairage de la map (lightmaps), de normal maps ni de shaders d'origine : l'éclairage est un simple Lambert.
+Les surfaces sont regroupées **par matériau** (un groupe d'indices par matériau) ; chaque matériau reçoit la texture de sa *color map* si elle a été trouvée, sinon une couleur de debug dérivée du nom. Les textures sont chargées après la géométrie : la map est explorable tout de suite, puis se texture. Les images avec transparence (feuillage, grillages) utilisent un alpha-test à 0,5. ### Lightmaps
+
+Le `GfxWorld` contient des atlas d'éclairage précalculé (`draw.lightmaps`) : un masque de lumière du soleil (`primary`, 1 octet/pixel) et une couleur de ciel/rebond (`secondary`, RGBA, moitié de largeur). Chaque sommet porte des coordonnées d'atlas (`lmapCoord`, décalées de 28 octets dans `GfxWorldVertex`) et chaque surface un `lightmapIndex`. Les deux images sont combinées côté CPU en une seule texture RGBA (`extractLightmaps`) et appliquées en `lightMap` d'un `MeshBasicMaterial` (couleur = albedo × lumière). **La formule exacte du moteur n'est pas reproduite** : les gains sont calibrés à l'œil. Les surfaces sans lightmap (index 31) et les props restent éclairés par des lumières three.js classiques ; pas encore de normal maps ni de shaders d'origine.
 
 ### Modèles statiques (props)
 
