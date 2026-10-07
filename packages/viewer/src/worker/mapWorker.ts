@@ -1,10 +1,14 @@
-import { FastFileLoader, ZoneLoader, extractWorldMesh, extractMapEnts, extractCollisionMesh, extractStaticModels, parseVec3 } from '@mwthree/iw5-core'
-import type { MapRequest, MapResponse, SpawnPoint } from './protocol'
+import {
+  FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, extractWorldMesh, extractMapEnts, extractCollisionMesh,
+  extractStaticModels, extractMaterialImages, parseVec3,
+} from '@mwthree/iw5-core'
+import { openSource } from './sources'
+import type { MapRequest, MapResponse, SpawnPoint, TextureData } from './protocol'
 
 const post = (msg: MapResponse, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(msg, transfer)
 
 self.onmessage = async (e: MessageEvent<MapRequest>) => {
-  const { buffer, fileName } = e.data
+  const { buffer, fileName, iwd } = e.data
   try {
     const t0 = performance.now()
     post({ type: 'progress', stage: 'Décompression du FastFile' })
@@ -38,20 +42,43 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
       {
         type: 'done',
         fileName,
-        positions: mesh.positions, normals: mesh.normals, colors: mesh.colors, indices: mesh.indices,
+        positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
         collision: collision && { positions: collision.positions, indices: collision.indices, brushes: collision.brushCount },
         staticModels,
         spawns,
         stats: {
           zoneBytes: zoneBuf.byteLength, assets: zone.assets.length, assetCounts: counts,
           entities: entities.length, surfaces: mesh.surfaces.length,
-          staticModels: staticModels.length, staticInstances: staticModels.reduce((a, m) => a + m.matrices.length / 16, 0),
+          staticModels: staticModels.length, staticInstances: staticModels.reduce((a, m) => a + m.matrices.length / 16, 0), textures: 0,
           msDecompress: Math.round(t1 - t0), msParse: Math.round(t2 - t1), msTotal: Math.round(performance.now() - t0),
         },
       },
-      [mesh.positions.buffer, mesh.normals.buffer, mesh.colors.buffer, mesh.indices.buffer, ...(collision ? [collision.positions.buffer, collision.indices.buffer] : []),
-        ...staticModels.flatMap(m => [m.positions.buffer, m.normals.buffer, m.colors.buffer, m.indices.buffer, m.matrices.buffer])],
+      [mesh.positions.buffer, mesh.normals.buffer, mesh.uvs.buffer, mesh.colors.buffer, mesh.indices.buffer, ...(collision ? [collision.positions.buffer, collision.indices.buffer] : []),
+        ...staticModels.flatMap(m => [m.positions.buffer, m.normals.buffer, m.uvs.buffer, m.colors.buffer, m.indices.buffer, m.matrices.buffer])],
     )
+
+    // textures are streamed after the geometry so the map is explorable immediately
+    if (iwd.length) {
+      const materialImages = extractMaterialImages(zone)
+      const lib = new ImageLibrary()
+      for (const src of iwd) await lib.addArchive(await openSource(src))
+      const wanted = [...new Set(Object.values(materialImages).filter((n): n is string => !!n))]
+      const textures: TextureData[] = []
+      let missing = 0
+      for (let i = 0; i < wanted.length; i++) {
+        const name = wanted[i]
+        if (i % 25 === 0) post({ type: 'progress', stage: `Textures ${i}/${wanted.length}` })
+        try {
+          const data = await lib.readIwi(name)
+          if (!data) { missing++; continue }
+          const img = parseIwi(data, 512)
+          let hasAlpha = false
+          for (let k = 3; k < img.rgba.length; k += 4) if (img.rgba[k] < 250) { hasAlpha = true; break }
+          textures.push({ name, width: img.width, height: img.height, rgba: img.rgba, hasAlpha })
+        } catch { missing++ }
+      }
+      post({ type: 'textures', textures, materialImages, missing }, textures.map(t => t.rgba.buffer))
+    }
   } catch (err) {
     post({ type: 'error', message: err instanceof Error ? err.message : String(err) })
   }

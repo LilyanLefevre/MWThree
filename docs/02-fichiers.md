@@ -6,7 +6,7 @@
 |---|---|---|
 | `zone/**/mp_<map>.ff` | **FastFile** de la map : géométrie, collision, entités, matériaux, modèles, sons… | ✓ lu |
 | `zone/**/mp_<map>_load.ff` | écran de chargement | ignoré |
-| `main/*.iwd` | archives zip : textures `.iwi`, sons | ⏳ à faire (textures) |
+| `main/*.iwd` | archives zip : textures `.iwi`, sons | ✓ textures lues |
 
 Un `.ff` (« FastFile ») est une zone compressée : les données sont déjà dans le format des structures du moteur, prêtes à être recopiées en mémoire.
 
@@ -43,3 +43,18 @@ Les assets qui comptent pour explorer la map :
 | `Material` / `GfxImage` | matériaux et références d'images — textures pas encore chargées |
 
 Les images, la plupart des matériaux et des shaders ne sont pas dans la liste d'assets : ils sont stockés *à l'intérieur* des assets qui les utilisent.
+
+## Textures : `.iwd` et `.iwi`
+
+```mermaid
+flowchart LR
+    M[Material.textureTable<br/>semantic = COLOR_MAP] -->|GfxImage.name| N[nom d'image]
+    N --> L[ImageLibrary<br/>index de main/*.iwd]
+    L -->|images/nom.iwi| I[IWi v8]
+    I --> D[mip choisi → RGBA]
+    D --> T[DataTexture three.js]
+```
+
+- Un `.iwd` est un zip : on lit uniquement le répertoire central (quelques dizaines de Ko sur ~300 Mo), puis les entrées voulues (lecture aléatoire, `File.slice` ou requêtes HTTP Range). L'index des 49 archives de `inputs/main/` (≈ 24 000 images) se construit en moins d'une seconde.
+- Un `.iwi` (version 8) : en-tête de 32 octets (`IWi`, version, flags, format, largeur/hauteur, tailles par niveau de qualité) suivi de la **chaîne de mips du plus petit au plus grand**. Formats gérés : DXT1/3/5, ARGB32, RGB24, GA16, A8.
+- On décode le plus grand mip ≤ 512 px pour borner la mémoire.

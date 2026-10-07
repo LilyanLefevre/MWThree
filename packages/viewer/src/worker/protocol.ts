@@ -1,6 +1,11 @@
-import type { StaticModelBatch } from '@mwthree/iw5-core'
+import type { StaticModelBatch, MaterialGroup } from '@mwthree/iw5-core'
 
-export interface MapRequest { buffer: ArrayBuffer; fileName: string }
+/** Where to read the .iwd archives from: local files (folder picker) or URLs (dev server, HTTP Range). */
+export type IwdSource = { file: File } | { url: string }
+
+export interface MapRequest { buffer: ArrayBuffer; fileName: string; iwd: IwdSource[] }
+
+export interface TextureData { name: string; width: number; height: number; rgba: Uint8Array; hasAlpha: boolean }
 
 export interface SpawnPoint {
   classname: string
@@ -17,6 +22,7 @@ export interface MapStats {
   surfaces: number
   staticModels: number
   staticInstances: number
+  textures: number
   msDecompress: number
   msParse: number
   msTotal: number
@@ -25,18 +31,21 @@ export interface MapStats {
 /** Physics geometry built from clipMap_t brushes and terrain triangles. */
 export interface CollisionData { positions: Float32Array; indices: Uint32Array; brushes: number }
 
-export type StaticModelData = Pick<StaticModelBatch, 'name' | 'positions' | 'normals' | 'colors' | 'indices' | 'matrices'>
+export type StaticModelData = Pick<StaticModelBatch, 'name' | 'positions' | 'normals' | 'uvs' | 'colors' | 'indices' | 'groups' | 'matrices'>
 
 export type MapResponse =
   | { type: 'progress'; stage: string }
+  | { type: 'textures'; textures: TextureData[]; materialImages: Record<string, string | null>; missing: number }
   | { type: 'error'; message: string }
   | {
       type: 'done'
       fileName: string
       positions: Float32Array
       normals: Float32Array
+      uvs: Float32Array
       colors: Float32Array
       indices: Uint32Array
+      groups: MaterialGroup[]
       collision: CollisionData | null
       staticModels: StaticModelData[]
       spawns: SpawnPoint[]

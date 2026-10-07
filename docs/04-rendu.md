@@ -18,7 +18,7 @@ flowchart LR
 
 Chaque **surface** référence une plage de sommets (`firstVertex`, `vertexCount`) et une plage d'indices (`baseIndex`, `triCount`) ; les indices sont relatifs à `firstVertex`. Un sommet (`GfxWorldVertex`, 44 octets) contient position, couleur, coordonnées de texture, coordonnées de lightmap, normale et tangente packées sur 4 octets chacune.
 
-Aujourd'hui les surfaces sont colorées par un hash du nom de matériau (pas de textures).
+Les surfaces sont regroupées **par matériau** (un groupe d'indices par matériau) ; chaque matériau reçoit la texture de sa *color map* si elle a été trouvée, sinon une couleur de debug dérivée du nom. Les textures sont chargées après la géométrie : la map est explorable tout de suite, puis se texture. Les images avec transparence (feuillage, grillages) utilisent un alpha-test à 0,5. Pas encore d'éclairage de la map (lightmaps), de normal maps ni de shaders d'origine : l'éclairage est un simple Lambert.
 
 ### Modèles statiques (props)
 
@@ -70,5 +70,6 @@ flowchart TD
 | décompression | ≈ 14 s |
 | lecture de la zone | ≈ 11 s |
 | extraction du mesh | < 1 s |
+| textures (≈ 300 images) | quelques secondes, après la géométrie |
 
 Pistes : décodage paresseux des structures, moins de copies de tableaux, cache du résultat (IndexedDB).

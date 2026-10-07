@@ -7,7 +7,7 @@ import { Player } from './components/Player'
 import { StaticModels } from './components/StaticModels'
 import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { MapInfo, MapWorld } from './types'
-import type { MapResponse } from './worker/protocol'
+import type { IwdSource, MapResponse } from './worker/protocol'
 
 /** `values()` is missing from the DOM typings of the File System Access API. */
 const entries = (dir: FileSystemDirectoryHandle) => (dir as unknown as { values(): AsyncIterable<FileSystemHandle> }).values()
@@ -59,6 +59,19 @@ async function readMapFile(root: FileSystemDirectoryHandle, fileName: string): P
   throw new Error(`${fileName} introuvable`)
 }
 
+/** The .iwd archives of the installation (root and main/), as local files. */
+async function listIwd(root: FileSystemDirectoryHandle): Promise<IwdSource[]> {
+  const out: IwdSource[] = []
+  const collect = async (dir: FileSystemDirectoryHandle) => {
+    for await (const entry of entries(dir)) {
+      if (entry.kind === 'file' && entry.name.endsWith('.iwd')) out.push({ file: await (entry as FileSystemFileHandle).getFile() })
+    }
+  }
+  await collect(root)
+  try { await collect(await root.getDirectoryHandle('main')) } catch { /* no main/ */ }
+  return out
+}
+
 /** Pick a deathmatch-ish spawn and convert it to scene coordinates (meters, Y-up). */
 function pickSpawn(world: MapWorld): { pos: [number, number, number]; yaw: number } {
   const s = world.spawns.find(p => p.classname === 'mp_dm_spawn') ?? world.spawns.find(p => /tdm_spawn$/.test(p.classname)) ?? world.spawns[0]
@@ -78,9 +91,10 @@ function App() {
   const [world, setWorld] = useState<MapWorld | null>(null)
   const [fly, setFly] = useState(false)
   const [showCollision, setShowCollision] = useState(false)
+  const [texturing, setTexturing] = useState(false)
   const worker = useRef<Worker | null>(null)
 
-  const runWorker = useCallback((buffer: ArrayBuffer, fileName: string) => {
+  const runWorker = useCallback((buffer: ArrayBuffer, fileName: string, iwd: IwdSource[]) => {
     worker.current?.terminate()
     const w = new Worker(new URL('./worker/mapWorker.ts', import.meta.url), { type: 'module' })
     worker.current = w
@@ -89,13 +103,18 @@ function App() {
       const m = e.data
       if (m.type === 'progress') setStage(m.stage)
       else if (m.type === 'error') { setError(m.message); setLoading(null); w.terminate() }
-      else {
-        setWorld(m); setLoading(null); w.terminate()
+      else if (m.type === 'textures') {
+        setWorld(prev => prev && { ...prev, textures: m.textures, materialImages: m.materialImages, stats: { ...prev.stats, textures: m.textures.length } })
+        setStage(''); setTexturing(false); w.terminate()
+      } else {
+        setWorld({ ...m, materialImages: {}, textures: [] }); setLoading(null)
+        setTexturing(iwd.length > 0)
+        if (iwd.length === 0) w.terminate()
         ;(window as unknown as { __mapStats?: unknown }).__mapStats = m.stats
       }
     }
     w.onerror = ev => { setError(ev.message); setLoading(null) }
-    w.postMessage({ buffer, fileName }, [buffer])
+    w.postMessage({ buffer, fileName, iwd }, [buffer])
   }, [])
 
   const onFolder = useCallback(async (fh: FileSystemDirectoryHandle) => {
@@ -105,7 +124,7 @@ function App() {
 
   const loadMap = useCallback(async (name: string) => {
     if (!folder) return
-    try { runWorker(await readMapFile(folder, name), name) } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+    try { runWorker(await readMapFile(folder, name), name, await listIwd(folder)) } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
   }, [folder, runWorker])
 
   // dev helper: /?dev=dome loads inputs/zone/dome/mp_dome.ff served by the Vite dev server
@@ -114,7 +133,10 @@ function App() {
     if (!dev || !import.meta.env.DEV) return
     const name = `mp_${dev}.ff`
     setLoading(name); setStage('Téléchargement (dev)')
-    fetch(`/__inputs/zone/${dev}/${name}`).then(r => r.arrayBuffer()).then(b => runWorker(b, name)).catch(e => setError(String(e)))
+    Promise.all([
+      fetch(`/__inputs/zone/${dev}/${name}`).then(r => r.arrayBuffer()),
+      fetch('/__inputs-list/main').then(r => r.json() as Promise<string[]>).catch(() => [] as string[]),
+    ]).then(([b, iwds]) => runWorker(b, name, iwds.map(n => ({ url: `/__inputs/main/${n}` })))).catch(e => setError(String(e)))
   }, [runWorker])
 
   useEffect(() => {
@@ -136,7 +158,7 @@ function App() {
         {world && spawn && (
           <Physics gravity={[0, -20, 0]}>
             <WorldMesh world={world} showCollision={showCollision} />
-            <StaticModels models={world.staticModels} />
+            <StaticModels world={world} />
             <Player spawn={spawn.pos} yaw={spawn.yaw} onFly={setFly} />
           </Physics>
         )}
@@ -149,13 +171,14 @@ function App() {
         padding: 10, borderRadius: 5, fontFamily: 'monospace', fontSize: 12, maxHeight: '85vh', overflowY: 'auto', minWidth: 240,
       }}>
         {isLoading && <div style={{ color: '#8af' }}>⏳ {loading}<br />{stage}…</div>}
+        {texturing && !isLoading && <div style={{ color: '#8af' }}>🖼 {stage || 'Textures'}…</div>}
         {error && <div style={{ color: '#f77' }}>✗ {error}</div>}
         {world && !isLoading && (
           <div style={{ marginBottom: 8 }}>
             <div style={{ color: '#6f6' }}>✓ {world.fileName}</div>
             <div>{(world.indices.length / 3).toLocaleString()} triangles · {world.stats.surfaces.toLocaleString()} surfaces</div>
             <div>{world.stats.entities.toLocaleString()} entités · {world.spawns.length} spawns</div>
-            <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles)</div>
+            <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles){world.textures.length > 0 && ` · ${world.textures.length} textures`}</div>
             <div style={{ color: '#aaa' }}>
               décompression {world.stats.msDecompress} ms · lecture {world.stats.msParse} ms
             </div>
