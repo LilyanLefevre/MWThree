@@ -2,7 +2,7 @@
 
 **Goal:** Reconstruct a playable Call of Duty MW3 (2011) experience in the browser, leveraging actual game files to correctly interpret maps and enable in-game movement.
 
-**Reference map:** `inputs/mp_seatown/mp_seatown.ff`
+**Reference map:** `inputs/zone/dome/mp_dome.ff`
 
 ---
 
@@ -80,7 +80,7 @@ flowchart TB
 ```
 mwthree/
 ├── ai/                   # Documents de cadrage (ce fichier)
-├── inputs/                # Fichiers de test (mp_seatown/)
+├── inputs/                # Fichiers de test (zone/dome/)
 ├── packages/
 │   ├── iw5-core/          # Parsers binaires (FF, zone, assets)
 │   ├── iw5-collision/     # clipMap_t → mesh + queries
@@ -110,7 +110,7 @@ mwthree/
     *   Lectures partielles → vérifier que la quantité attendue est lue
 5.  Tests : comparer taille/hash zone avec CoD-FF-Tools ffcli extract
 
-**Critère de succès :** Dump zone identique à l'outil C# de référence pour `mp_seatown.ff`.
+**Critère de succès :** Dump zone identique à l'outil C# de référence pour `mp_dome.ff`.
 
 ### Phase 2 — Zone loader et résolution de pointeurs (3–4 semaines)
 
@@ -135,7 +135,7 @@ mwthree/
     *   Journalisation complète des erreurs
     *   Retour utilisateur pour les erreurs critiques
 
-**Critère de succès :** Extraire `MapEnts.entityString` lisible depuis `mp_seatown.ff`.
+**Critère de succès :** Extraire `MapEnts.entityString` lisible depuis `mp_dome.ff`.
 
 ### Phase 3 — Collision et déplacement FPS (2–3 semaines)
 
@@ -156,7 +156,7 @@ mwthree/
 3.  Constantes MW3 : units → mètres, joueur ~56 units haut, yeux ~60 units
 4.  Contrôleur FPS : WASD, souris, saut, gravité
 
-**Critère de succès :** Marcher sur le sol de `mp_seatown` sans traverser murs/sol.
+**Critère de succès :** Marcher sur le sol de `mp_dome` sans traverser murs/sol.
 
 ### Phase 4 — Géométrie visuelle (3–4 semaines)
 
@@ -167,7 +167,7 @@ mwthree/
 *   Rendu gris/debug + wireframe toggle
 *   Ignorer Umbra dPVS → frustum culling Three.js
 
-**Critère de succès :** Silhouette reconnaissable de `mp_seatown` + déplacement collision aligné.
+**Critère de succès :** Silhouette reconnaissable de `mp_dome` + déplacement collision aligné.
 
 ### Phase 5 — Textures et IWD (2–3 semaines)
 
@@ -193,7 +193,7 @@ mwthree/
 
 | Risque                             | Impact                      | Mitigation                                                                      |
 | :--------------------------------- | :-------------------------- | :------------------------------------------------------------------------------ |
-| Structs IW5 incomplètement documentées | Crash / données corrompues | Tests byte-level vs OAT ; map pilote `mp_seatown` ; logs hex diff               |
+| Structs IW5 incomplètement documentées | Crash / données corrompues | Tests byte-level vs OAT ; map pilote `mp_dome` ; logs hex diff               |
 | GfxWorld trop complexe             | Pas de rendu complet        | Phase 4 partielle : brushes d'abord, xmodels ensuite                            |
 | Perf navigateur (gros FF)          | OOM / freeze                | Streaming par asset ; Web Workers ; WASM si besoin                              |
 | FF signés PC                       | Échec chargement            | Cibler PC retail (unsigned zlib path) ; ignorer signature check en local        |

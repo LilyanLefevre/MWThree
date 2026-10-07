@@ -1,12 +1,13 @@
-Le dossier `mp_seatown/` contient les fichiers de test pour le projet.
+Dossier des fichiers de jeu locaux (ignoré par git, sauf ce fichier et les `.arena`).
 
-**Fichiers attendus (non versionnés) :**
-- `mp_seatown.ff` (25MB, format IW4x) — FastFile principal de la map
-- `mp_seatown_load.ff` (792B) — FastFile de chargement
-- `mp_seatown.iwd` (70MB) — Archive textures/sons
+**Map d'exemple : `mp_dome`** — à copier depuis ta propre installation MW3 :
 
-**Fichiers versionnés :**
-- `mp_seatown.arena` — Configuration de map
+```
+inputs/zone/dome/mp_dome.ff        # FastFile de la map (≈ 60 Mo)
+inputs/zone/dome/mp_dome_load.ff   # optionnel
+```
 
-Ces fichiers doivent être copiés depuis une installation MW3 locale.
-Le format des .ff est IW4x (magic "IW4x", version 3).
+La même arborescence `inputs/zone/<map>/mp_<map>.ff` fonctionne pour les autres maps (`seatown`, `bootleg`, …).
+Les archives `main/*.iwd` (textures, sons) iront dans `inputs/main/` (utilisées plus tard).
+
+Le viewer en dev charge directement une map avec `http://localhost:5173/?dev=dome`.

@@ -25,7 +25,7 @@ La zone décompressée commence par le **XFile** (44 octets) :
 `size`, `externalSize`, `blockSize[9]` (TEMP, PHYSICAL, RUNTIME, VIRTUAL, LARGE, CALLBACK, VERTEX, INDEX, SCRIPT),
 puis l'**XAssetList** (16 octets : `stringCount`, `strings*`, `assetCount`, `assets*`).
 
-> `inputs/mp_seatown/*` est au format "IW4x" (mod) et n'est pas supporté. Utiliser `inputs/zone/seatown/`.
+> Un ancien dossier `inputs/mp_seatown/` au format "IW4x" (mod) n'est pas supporté ; utiliser les zones retail `inputs/zone/<map>/`.
 
 ## 2. Modèle de chargement (miroir de OpenAssetTools)
 
