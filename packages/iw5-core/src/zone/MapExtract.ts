@@ -61,7 +61,7 @@ function resolveVal(zone: LoadedZone, v: any): any {
 }
 
 /** Stable pleasant-ish debug color for a material name. */
-function materialColor(name: string): [number, number, number] {
+export function materialColor(name: string): [number, number, number] {
   let h = 2166136261
   for (let i = 0; i < name.length; i++) { h ^= name.charCodeAt(i); h = Math.imul(h, 16777619) }
   const hue = (h >>> 0) % 360, sat = 0.25 + (((h >>> 9) & 0xff) / 255) * 0.25, lum = 0.5 + (((h >>> 17) & 0xff) / 255) * 0.2
@@ -128,4 +128,85 @@ export function extractMapEnts(zone: LoadedZone): Entity[] {
   const me = resolveVal(zone, clip?.mapEnts) ?? zone.assets.find(a => a.typeName === 'MapEnts')?.value
   if (!me?.entityString || typeof me.entityString === 'string') return []
   return parseEntities(me.entityString as ArrayLike<number>)
+}
+
+// ---------------------------------------------------------------- static models
+
+export interface StaticModelBatch {
+  name: string
+  /** meters, game axes (the instance matrix converts to scene space) */
+  positions: Float32Array
+  normals: Float32Array
+  uvs: Float32Array
+  colors: Float32Array
+  indices: Uint32Array
+  /** 16 floats (column-major, scene space) per instance */
+  matrices: Float32Array
+}
+
+function halfToFloat(h: number): number {
+  const e = (h >> 10) & 0x1f, m = h & 0x3ff, sign = h & 0x8000 ? -1 : 1
+  if (e === 0) return sign * 2 ** -14 * (m / 1024)
+  if (e === 31) return m ? NaN : sign * Infinity
+  return sign * 2 ** (e - 15) * (1 + m / 1024)
+}
+
+/** LOD0 geometry of one XModel, in meters with the game's axes. */
+function buildModelGeometry(zone: LoadedZone, model: any): Omit<StaticModelBatch, 'name' | 'matrices'> | null {
+  const lod = model.lodInfo?.[0]
+  const surfsAsset = resolveVal(zone, lod?.modelSurfs)
+  const surfs: any[] | undefined = surfsAsset?.surfs
+  if (!surfs?.length) return null
+  const pos: number[] = [], nrm: number[] = [], uv: number[] = [], col: number[] = [], idx: number[] = []
+  const handles: any[] = model.materialHandles ?? []
+  surfs.forEach((surf, si) => {
+    const verts = surf.verts0 as PlainArray | undefined
+    const tris = surf.triIndices as PlainArray | undefined
+    if (!verts || !tris || !surf.vertCount || !surf.triCount) return
+    const vdv = new DataView(verts.bytes.buffer, verts.bytes.byteOffset, verts.bytes.byteLength)
+    const [cr, cg, cb] = materialColor(materialName(zone, handles[(lod.surfIndex ?? 0) + si]))
+    const base = pos.length / 3
+    for (let i = 0; i < verts.length; i++) {
+      const o = i * verts.stride
+      pos.push(vdv.getFloat32(o, true) * UNIT_SCALE, vdv.getFloat32(o + 4, true) * UNIT_SCALE, vdv.getFloat32(o + 8, true) * UNIT_SCALE)
+      const n = unpackUnitVec(vdv.getUint32(o + 24, true))
+      nrm.push(n[0], n[1], n[2])
+      const t = vdv.getUint32(o + 20, true)
+      uv.push(halfToFloat(t & 0xffff), halfToFloat(t >>> 16))
+      col.push(cr, cg, cb)
+    }
+    const tdv = new DataView(tris.bytes.buffer, tris.bytes.byteOffset, tris.bytes.byteLength)
+    for (let t = 0; t < surf.triCount; t++) {
+      const a = tdv.getUint16(t * 6, true), b = tdv.getUint16(t * 6 + 2, true), c = tdv.getUint16(t * 6 + 4, true)
+      idx.push(base + a, base + c, base + b) // game triangles are clockwise
+    }
+  })
+  if (!idx.length) return null
+  return { positions: Float32Array.from(pos), normals: Float32Array.from(nrm), uvs: Float32Array.from(uv), colors: Float32Array.from(col), indices: Uint32Array.from(idx) }
+}
+
+/** Static props placed in the world (GfxWorld.dpvs.smodelDrawInsts), grouped per model for instancing. */
+export function extractStaticModels(zone: LoadedZone): StaticModelBatch[] {
+  const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
+  const insts: any[] = gfx?.dpvs?.smodelDrawInsts ?? []
+  const byModel = new Map<any, { model: any; mats: number[] }>()
+  for (const inst of insts) {
+    const model = resolveVal(zone, inst.model)
+    if (!model?.lodInfo) continue
+    const { origin, axis, scale } = inst.placement
+    const s = scale || 1
+    // scene = (x, z, -y); linear part columns are the (scaled) axis vectors converted to scene space
+    const col = (k: number) => [axis[k * 3] * s, axis[k * 3 + 2] * s, -axis[k * 3 + 1] * s]
+    const [c0, c1, c2] = [col(0), col(1), col(2)]
+    const m = [...c0, 0, ...c1, 0, ...c2, 0, origin[0] * UNIT_SCALE, origin[2] * UNIT_SCALE, -origin[1] * UNIT_SCALE, 1]
+    const e = byModel.get(model) ?? { model, mats: [] }
+    e.mats.push(...m)
+    byModel.set(model, e)
+  }
+  const out: StaticModelBatch[] = []
+  for (const { model, mats } of byModel.values()) {
+    const g = buildModelGeometry(zone, model)
+    if (g) out.push({ name: model.name ?? '', ...g, matrices: Float32Array.from(mats) })
+  }
+  return out
 }

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { FastFileLoader } from '../FastFileLoader.js'
 import { ZoneLoader } from './ZoneLoader.js'
-import { extractMapEnts, extractWorldMesh } from './MapExtract.js'
+import { extractMapEnts, extractStaticModels, extractWorldMesh } from './MapExtract.js'
 
 // Integration test against a real retail zone. Game files are never committed:
 // the test is skipped when the local copy is missing.
@@ -31,6 +31,17 @@ describe.skipIf(!existsSync(DOME))('ZoneLoader (mp_dome.ff)', () => {
     for (const i of mesh.indices) if (i > max) max = i
     expect(max).toBeLessThan(mesh.positions.length / 3)
     expect(mesh.surfaces.length).toBeGreaterThan(5000)
+  })
+
+  it('extracts instanced static models', () => {
+    const batches = extractStaticModels(zone)
+    expect(batches.length).toBeGreaterThan(100)
+    for (const b of batches) {
+      let max = 0
+      for (const i of b.indices) if (i > max) max = i
+      expect(max).toBeLessThan(b.positions.length / 3)
+      expect(b.matrices.length % 16).toBe(0)
+    }
   })
 
   it('extracts map entities', () => {

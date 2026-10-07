@@ -4,6 +4,7 @@ import { Physics } from '@react-three/rapier'
 import FolderSelector from './components/FolderSelector'
 import { WorldMesh } from './components/WorldMesh'
 import { Player } from './components/Player'
+import { StaticModels } from './components/StaticModels'
 import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { MapInfo, MapWorld } from './types'
 import type { MapResponse } from './worker/protocol'
@@ -135,6 +136,7 @@ function App() {
         {world && spawn && (
           <Physics gravity={[0, -20, 0]}>
             <WorldMesh world={world} showCollision={showCollision} />
+            <StaticModels models={world.staticModels} />
             <Player spawn={spawn.pos} yaw={spawn.yaw} onFly={setFly} />
           </Physics>
         )}
@@ -153,6 +155,7 @@ function App() {
             <div style={{ color: '#6f6' }}>✓ {world.fileName}</div>
             <div>{(world.indices.length / 3).toLocaleString()} triangles · {world.stats.surfaces.toLocaleString()} surfaces</div>
             <div>{world.stats.entities.toLocaleString()} entités · {world.spawns.length} spawns</div>
+            <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles)</div>
             <div style={{ color: '#aaa' }}>
               décompression {world.stats.msDecompress} ms · lecture {world.stats.msParse} ms
             </div>

@@ -8,7 +8,7 @@
 | 1 — Décompression FastFile (`IWff0100` signé, `IWffu100`) | ✓ |
 | 2 — Zone loader (assets, pointeurs, blocs) | ✓ — les 16 maps `mp_*` de `inputs/zone/` se chargent à l'octet près |
 | 3 — Collision + déplacement FPS | ✓ — brushes `clipMap_t` solides/playerclip → enveloppes convexes → un trimesh Rapier (+ triangles de terrain) ; marche, saut, vol libre, **C** affiche la collision. Reste : collision des modèles statiques |
-| 4 — Géométrie visuelle | ◐ — surfaces BSP du `GfxWorld` rendues (couleur par matériau). Manquent : modèles statiques (`XModel`), terrain/décals triés |
+| 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Manquent : LOD, collision des props |
 | 5 — Textures `.iwd` / `.iwi` | ⏳ |
 | 6 — Entités / UX | ◐ — entités décodées (spawns utilisés pour placer le joueur) ; pas d'overlay debug |
 
@@ -53,10 +53,9 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 
 ## Prochaines étapes
 
-1. **Modèles statiques** : `GfxWorld.dpvs.smodelDrawInsts` → `XModel` → `XModelSurfs` (vertices/indices) ; instancier.
-2. **Textures** : `.iwd` (fflate) + `.iwi` (DXT) + `Material.textureTable`.
-3. **Perf du chargement** : décodage paresseux, moins de copies, cache IndexedDB du résultat.
-4. Overlay entités (spawns, triggers), sélecteur de map, noclip/téléport.
+1. **Textures** : `.iwd` (fflate) + `.iwi` (DXT) + `Material.textureTable`.
+2. **Perf du chargement** : décodage paresseux, moins de copies, cache IndexedDB du résultat.
+3. Overlay entités (spawns, triggers), sélecteur de map, noclip/téléport.
 
 ## Décisions
 
