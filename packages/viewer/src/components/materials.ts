@@ -50,14 +50,16 @@ export function buildWorldMaterials(world: MapWorld): { list: THREE.Material[]; 
   const list = world.groups.map(g => {
     const base = lit.map.get(g.material)!
     const lm = g.lightmap !== undefined && g.lightmap >= 0 ? lmTex[g.lightmap] : undefined
-    if (!lm) return base
-    const key = `${g.material}|${g.lightmap}`
+    if (!lm && !g.decal) return base
+    const key = `${g.material}|${g.lightmap}|${g.decal ? 'd' : ''}`
     let mat = cache.get(key)
     if (!mat) {
       const src = base as THREE.MeshLambertMaterial
       mat = new THREE.MeshBasicMaterial({
-        map: src.map, color: src.map ? 0xffffff : src.color, lightMap: lm, lightMapIntensity: Math.PI,
-        alphaTest: src.alphaTest, side: src.side,
+        map: src.map, color: src.map ? 0xffffff : src.color, lightMap: lm, lightMapIntensity: lm ? Math.PI : 1,
+        alphaTest: g.decal ? 0.02 : src.alphaTest, side: src.side,
+        // decals are blended over the surface below with the vertex alpha
+        ...(g.decal ? { vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } : {}),
       })
       cache.set(key, mat)
     }

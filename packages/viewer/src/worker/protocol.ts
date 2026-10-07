@@ -44,6 +44,7 @@ export type MapResponse =
       normals: Float32Array
       uvs: Float32Array
       lmUvs: Float32Array
+      vertexColors: Float32Array
       lightmaps: Lightmap[]
       colors: Float32Array
       indices: Uint32Array
