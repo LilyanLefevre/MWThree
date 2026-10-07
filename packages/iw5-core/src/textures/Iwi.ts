@@ -84,3 +84,52 @@ export function toNormalMap(rgba: Uint8Array): void {
     rgba[i + 3] = 255
   }
 }
+
+/**
+ * Cube maps (skies) store 6 faces of the top level only: 32-byte header + 6 x level bytes,
+ * in D3D face order (+X, -X, +Y, -Y, +Z, -Z). Returns null for non-cube files.
+ */
+export function parseIwiCube(data: Uint8Array): IwiImage[] | null {
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  const format = data[8]
+  const w = dv.getUint16(10, true), h = dv.getUint16(12, true)
+  const f = FORMATS[format]
+  if (!f) return null
+  const face = f.kind === 'dxt' ? Math.max(1, (w + 3) >> 2) * Math.max(1, (h + 3) >> 2) * dxtBlockBytes(f.dxt) : w * h * f.bpp
+  if (data.length !== 32 + 6 * face || f.kind !== 'dxt') return null
+  const faces: IwiImage[] = []
+  for (let i = 0; i < 6; i++) {
+    const rgba = decodeDxt(data.subarray(32 + i * face, 32 + (i + 1) * face), w, h, f.dxt)
+    faces.push({ width: w, height: h, rgba, format, flags: dv.getUint32(4, true), mipCount: 1 })
+  }
+  return faces
+}
+
+/**
+ * Resample a cube map (D3D face layout, game axes: Z up) to an equirectangular image laid out the way
+ * three.js samples it (EquirectangularReflectionMapping): row 0 is the bottom (looking down),
+ * u = atan2(z, x) / 2π + 0.5 in scene axes (Y up; scene = (x, z, -y) of the game).
+ */
+export function cubeToEquirect(faces: IwiImage[], width = 2048, height = 1024): Uint8Array {
+  const out = new Uint8Array(width * height * 4)
+  for (let y = 0; y < height; y++) {
+    const lat = ((y + 0.5) / height - 0.5) * Math.PI
+    for (let x = 0; x < width; x++) {
+      const phi = ((x + 0.5) / width - 0.5) * 2 * Math.PI
+      const sx = Math.cos(lat) * Math.cos(phi), sy = Math.sin(lat), sz = Math.cos(lat) * Math.sin(phi)
+      // scene (x, y, z) -> game (x, -z, y)
+      const gx = sx, gy = -sz, gz = sy
+      const ax = Math.abs(gx), ay = Math.abs(gy), az = Math.abs(gz)
+      let face: number, sc: number, tc: number, ma: number
+      if (ax >= ay && ax >= az) { ma = ax; face = gx > 0 ? 0 : 1; sc = gx > 0 ? -gz : gz; tc = -gy }
+      else if (ay >= az) { ma = ay; face = gy > 0 ? 2 : 3; sc = gx; tc = gy > 0 ? gz : -gz }
+      else { ma = az; face = gz > 0 ? 4 : 5; sc = gz > 0 ? gx : -gx; tc = -gy }
+      const f = faces[face]
+      const u = Math.min(f.width - 1, Math.max(0, Math.floor((sc / ma + 1) / 2 * f.width)))
+      const v = Math.min(f.height - 1, Math.max(0, Math.floor((tc / ma + 1) / 2 * f.height)))
+      const src = (v * f.width + u) * 4, o = (y * width + x) * 4
+      out[o] = f.rgba[src]; out[o + 1] = f.rgba[src + 1]; out[o + 2] = f.rgba[src + 2]; out[o + 3] = 255
+    }
+  }
+  return out
+}

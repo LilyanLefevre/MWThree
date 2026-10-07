@@ -416,3 +416,10 @@ export function extractLightmaps(zone: LoadedZone, sun: Sun | null = extractSun(
   }
   return out
 }
+
+/** Name of the sky cube map (GfxWorld.skies[0].skyImage), when the map has one. */
+export function extractSkyImage(zone: LoadedZone): string | null {
+  const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
+  const img = resolveVal(zone, gfx?.skies?.[0]?.skyImage)
+  return typeof img?.name === 'string' ? img.name : null
+}
