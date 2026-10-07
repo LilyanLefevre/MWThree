@@ -27,7 +27,6 @@ mwthree/
 │   ├── iw5-core/            # Parsers binaires (FastFile, zone, assets)
 │   ├── iw5-collision/       # ClipMap → Colliders Rapier3D
 │   └── viewer/              # App React Three Fiber
-├── .opencode/               # Configuration opencode (IA)
 ├── package.json             # Root workspace
 └── tsconfig.base.json       # Configuration TypeScript de base
 ```
