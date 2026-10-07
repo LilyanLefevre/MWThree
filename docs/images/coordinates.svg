@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 300" font-family="ui-monospace,Menlo,monospace" font-size="13">
+  <rect width="1080" height="300" fill="#fff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold">Repères : jeu (Z haut, pouces) → scène three.js (Y haut, mètres)</text>
+  <g stroke="#333" stroke-width="2" fill="none" marker-end="url(#h)">
+    <path d="M120 230 V80"/><path d="M120 230 L260 230"/><path d="M120 230 L50 270"/>
+  </g>
+  <defs><marker id="h" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8z" fill="#333"/></marker></defs>
+  <text x="130" y="82">Z (haut)</text><text x="262" y="234">X</text><text x="20" y="282">Y</text>
+  <text x="60" y="55" font-weight="bold">Jeu (IW5)</text>
+  <g transform="translate(180,0)">
+  <g stroke="#333" stroke-width="2" fill="none" marker-end="url(#h)">
+    <path d="M620 230 V80"/><path d="M620 230 L760 230"/><path d="M620 230 L550 270"/>
+  </g>
+  <text x="630" y="82">Y (haut)</text><text x="762" y="234">X</text><text x="520" y="282">Z</text>
+  <text x="560" y="55" font-weight="bold">Scène three.js</text>
+  </g>
+  <text x="300" y="130">(x, y, z)</text><text x="300" y="150">→ (x, z, −y) × 0.0254</text>
+  <text x="300" y="180" font-size="12">1 unité = 1 pouce = 0,0254 m</text>
+  <text x="300" y="200" font-size="12">rotation propre : le sens des triangles est conservé</text>
+  <text x="300" y="220" font-size="12">(les triangles du jeu sont horaires → on échange 2 sommets)</text>
+</svg>

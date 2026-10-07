@@ -1,0 +1,56 @@
+# 04 — Le rendu et le déplacement
+
+## Du `GfxWorld` à l'écran
+
+```mermaid
+flowchart LR
+    G[GfxWorld] --> V[draw.vd.vertices<br/>183 559 sommets × 44 octets]
+    G --> I[draw.indices<br/>Uint16]
+    G --> S[dpvs.surfaces<br/>5 542 surfaces]
+    S -->|firstVertex, baseIndex, triCount| M[Index global<br/>Uint32Array]
+    V --> M
+    S -->|material.name| C[Couleur debug<br/>par matériau]
+    M --> B[BufferGeometry three.js]
+    C --> B
+    B --> R[Rendu Lambert<br/>vertex colors]
+    B --> T[TrimeshCollider Rapier]
+```
+
+Chaque **surface** référence une plage de sommets (`firstVertex`, `vertexCount`) et une plage d'indices (`baseIndex`, `triCount`) ; les indices sont relatifs à `firstVertex`. Un sommet (`GfxWorldVertex`, 44 octets) contient position, couleur, coordonnées de texture, coordonnées de lightmap, normale et tangente packées sur 4 octets chacune.
+
+Aujourd'hui les surfaces sont colorées par un hash du nom de matériau (pas de textures). Les modèles statiques (props) ne sont pas encore instanciés.
+
+## Repères et sens des triangles
+
+![Changement de repère](images/coordinates.svg)
+
+## Entités et point d'apparition
+
+`clipMap_t.mapEnts.entityString` est un texte compact : un bloc `{ … }` par entité, des lignes `<id> "<valeur>"` où l'identifiant est un index dans la table de constantes du moteur. Quelques identifiants sont connus (`1668 classname`, `1669 origin`, `1677 angles`…, voir `ENTITY_KEYS`). Le joueur apparaît au premier `mp_dm_spawn` (sinon un spawn `tdm`, sinon n'importe quel spawn).
+
+## Joueur et collision
+
+```mermaid
+flowchart TD
+    K[Clavier WASD/ZQSD, Espace, Maj] --> W[Vitesse horizontale voulue]
+    M[Souris - PointerLock] --> Q[Orientation caméra]
+    W --> B[RigidBody capsule<br/>Rapier, rotations verrouillées]
+    G[Gravité -20 m/s²] --> B
+    B -->|raycast vers le bas| J[Saut si au sol]
+    B --> Cam[Caméra = position + 0,7 m]
+    T[Trimesh de la map<br/>fixe] --> B
+```
+
+- Capsule : rayon 0,35 m, hauteur 1,6 m ; marche 4,8 m/s (sprint ×1,5), saut 6,5 m/s.
+- **V** : vol libre (collisions désactivées) pour inspecter la map.
+- La collision utilise pour l'instant le **mesh visible**. Les brushes de `clipMap_t` (murs invisibles, limites de map) seront convertis en colliders convexes dans `iw5-collision`.
+
+## Performance (machine de dev, Chrome)
+
+| Étape | `mp_dome` |
+|---|---|
+| décompression | ≈ 14 s |
+| lecture de la zone | ≈ 11 s |
+| extraction du mesh | < 1 s |
+
+Pistes : décodage paresseux des structures, moins de copies de tableaux, cache du résultat (IndexedDB).
