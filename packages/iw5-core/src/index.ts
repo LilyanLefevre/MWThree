@@ -4,3 +4,5 @@ export { ZoneLoader, PlainArray, schema as iw5Schema, ASSET_STRUCT_BY_TYPE, XFIL
 export type { LoadedZone, LoadedAsset } from './zone/ZoneLoader.js'
 export { extractWorldMesh, extractMapEnts, parseEntities, parseVec3, UNIT_SCALE, ENTITY_KEYS } from './zone/MapExtract.js'
 export type { WorldMesh, Entity } from './zone/MapExtract.js'
+export { extractCollisionMesh } from './zone/Collision.js'
+export type { CollisionMesh } from './zone/Collision.js'

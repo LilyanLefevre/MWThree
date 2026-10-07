@@ -7,7 +7,7 @@
 | 0 — Fondations (monorepo, viewer R3F, détection MW3) | ✓ |
 | 1 — Décompression FastFile (`IWff0100` signé, `IWffu100`) | ✓ |
 | 2 — Zone loader (assets, pointeurs, blocs) | ✓ — les 16 maps `mp_*` de `inputs/zone/` se chargent à l'octet près |
-| 3 — Collision + déplacement FPS | ◐ — trimesh Rapier généré depuis la géométrie visuelle (GfxWorld) ; marche, saut, vol libre. Les brushes `clipMap_t` (collision invisible) ne sont pas encore convertis |
+| 3 — Collision + déplacement FPS | ✓ — brushes `clipMap_t` solides/playerclip → enveloppes convexes → un trimesh Rapier (+ triangles de terrain) ; marche, saut, vol libre, **C** affiche la collision. Reste : collision des modèles statiques |
 | 4 — Géométrie visuelle | ◐ — surfaces BSP du `GfxWorld` rendues (couleur par matériau). Manquent : modèles statiques (`XModel`), terrain/décals triés |
 | 5 — Textures `.iwd` / `.iwi` | ⏳ |
 | 6 — Entités / UX | ◐ — entités décodées (spawns utilisés pour placer le joueur) ; pas d'overlay debug |
@@ -21,7 +21,7 @@ npm run dev                          # http://localhost:5173
 
 - Bouton « Select MW3 Game Folder » → choisir le dossier d'installation (ou un dossier contenant `zone/<map>/mp_<map>.ff`), puis cliquer une map.
 - Raccourci dev (Vite uniquement) : `http://localhost:5173/?dev=dome` charge `inputs/zone/dome/mp_dome.ff` ; `&free=1` accepte le clavier sans pointer lock (tests automatisés).
-- Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, **V = vol libre** (Espace/Ctrl = monter/descendre).
+- Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, **V = vol libre**, **C** = afficher la collision (Espace/Ctrl = monter/descendre).
 - Chargement ≈ 20–30 s (Web Worker) ; voir « Perf » dans `RE_NOTES.md`.
 
 ## Vérifier le loader
@@ -46,17 +46,17 @@ packages/viewer/
   src/worker/mapWorker.ts          décompression + lecture + extraction hors thread UI
   src/components/WorldMesh.tsx     mesh + TrimeshCollider
   src/components/Player.tsx        capsule Rapier + PointerLockControls
-packages/iw5-collision/            stub (brushes clipMap_t → colliders : à faire)
+packages/iw5-core/src/zone/Collision.ts  clipMap_t → mesh de collision (brushes + terrain)
+packages/iw5-collision/            stub (inutilisé pour l'instant)
 scripts/                           genSchema.mjs, loadZone.mts (outils de vérification)
 ```
 
 ## Prochaines étapes
 
-1. **Collision fidèle** : convertir `clipMap_t` (planes, brushes, brushsides, leafbrush nodes, `verts`/`triIndices`) en colliders convexes.
-2. **Modèles statiques** : `GfxWorld.dpvs.smodelDrawInsts` → `XModel` → `XModelSurfs` (vertices/indices) ; instancier.
-3. **Textures** : `.iwd` (fflate) + `.iwi` (DXT) + `Material.textureTable`.
-4. **Perf du chargement** : décodage paresseux, moins de copies, cache IndexedDB du résultat.
-5. Overlay entités (spawns, triggers), sélecteur de map, noclip/téléport.
+1. **Modèles statiques** : `GfxWorld.dpvs.smodelDrawInsts` → `XModel` → `XModelSurfs` (vertices/indices) ; instancier.
+2. **Textures** : `.iwd` (fflate) + `.iwi` (DXT) + `Material.textureTable`.
+3. **Perf du chargement** : décodage paresseux, moins de copies, cache IndexedDB du résultat.
+4. Overlay entités (spawns, triggers), sélecteur de map, noclip/téléport.
 
 ## Décisions
 

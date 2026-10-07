@@ -43,7 +43,11 @@ flowchart TD
 
 - Capsule : rayon 0,35 m, hauteur 1,6 m ; marche 4,8 m/s (sprint ×1,5), saut 6,5 m/s.
 - **V** : vol libre (collisions désactivées) pour inspecter la map.
-- La collision utilise pour l'instant le **mesh visible**. Les brushes de `clipMap_t` (murs invisibles, limites de map) seront convertis en colliders convexes dans `iw5-collision`.
+- La collision vient de `clipMap_t` (touche **C** pour l'afficher en fil de fer) :
+  - un **brush** est un volume convexe défini par 6 plans axiaux implicites (la boîte `brushBounds`) plus `numsides` plans explicites ; seuls les brushes *solid* ou *playerclip* sont retenus ;
+  - chaque brush est converti en polyèdre (intersection des triples de plans, filtrage des points intérieurs, tri des sommets de chaque face) puis triangulé ;
+  - les triangles de terrain de `clipMap_t` (`verts`, `triIndices`) sont ajoutés ;
+  - le tout forme un seul trimesh Rapier (`mp_dome` : 6 053 brushes, ≈ 125 000 triangles, ≈ 2 s).
 
 ## Performance (machine de dev, Chrome)
 
