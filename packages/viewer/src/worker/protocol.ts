@@ -29,6 +29,8 @@ export interface MapStats {
   msDecompress: number
   msParse: number
   msTotal: number
+  /** loaded from the IndexedDB cache */
+  fromCache: boolean
 }
 
 /** Physics geometry built from clipMap_t brushes and terrain triangles. */

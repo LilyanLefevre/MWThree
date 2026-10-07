@@ -186,7 +186,9 @@ function App() {
             <div>{world.stats.staticInstances.toLocaleString()} props ({world.stats.staticModels} modèles){world.textures.length > 0 && ` · ${world.textures.filter(t => !t.normal).length} textures`}</div>
             <div>dont {world.stats.entityProps} issus d'entités ({world.stats.missingEntityModels} modèles absents)</div>
             <div style={{ color: '#aaa' }}>
-              décompression {world.stats.msDecompress} ms · lecture {world.stats.msParse} ms
+              {world.stats.fromCache
+                ? `chargé depuis le cache en ${world.stats.msTotal} ms`
+                : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms`}
             </div>
             <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes (C = afficher)` : 'collision : mesh visible'}</div>
             <div style={{ color: '#ff6' }}>{fly ? 'Mode vol (V pour revenir)' : 'Marche (V = vol libre)'}</div>

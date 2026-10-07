@@ -23,6 +23,7 @@ npm run dev                          # http://localhost:5173
 - Raccourci dev (Vite uniquement) : `http://localhost:5173/?dev=dome` charge `inputs/zone/dome/mp_dome.ff` ; `&free=1` accepte le clavier sans pointer lock (tests automatisés).
 - Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, **V = vol libre**, **C** = afficher la collision (Espace/Ctrl = monter/descendre).
 - Chargement : géométrie en quelques secondes (Web Worker), puis les textures arrivent (≈ 300 images pour `mp_dome`) ; voir « Perf » dans `RE_NOTES.md`.
+- **Cache** : le résultat décodé (géométrie + textures) est gardé dans IndexedDB ; recharger la même map prend ~2-3 s au lieu de ~30 s. Incrémenter `CACHE_VERSION` (`packages/viewer/src/worker/cache.ts`) quand l'extraction change.
 - Les textures sont lues dans `main/*.iwd` du dossier choisi (ou `inputs/main/` avec `?dev=`).
 
 ## Vérifier le loader
