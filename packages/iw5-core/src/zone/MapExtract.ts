@@ -242,21 +242,72 @@ export function extractStaticModels(zone: LoadedZone): StaticModelBatch[] {
     const model = resolveVal(zone, inst.model)
     if (!model?.lodInfo) continue
     const { origin, axis, scale } = inst.placement
-    const s = scale || 1
-    // scene = (x, z, -y); linear part columns are the (scaled) axis vectors converted to scene space
-    const col = (k: number) => [axis[k * 3] * s, axis[k * 3 + 2] * s, -axis[k * 3 + 1] * s]
-    const [c0, c1, c2] = [col(0), col(1), col(2)]
-    const m = [...c0, 0, ...c1, 0, ...c2, 0, origin[0] * UNIT_SCALE, origin[2] * UNIT_SCALE, -origin[1] * UNIT_SCALE, 1]
-    const e = byModel.get(model) ?? { model, mats: [] }
-    e.mats.push(...m)
-    byModel.set(model, e)
+    addInstance(byModel, model, origin, axis, scale)
   }
+  return batchesOf(zone, byModel)
+}
+
+/** Instance matrix: scene = (x, z, -y); the linear part columns are the (scaled) axis vectors converted to scene space. */
+function addInstance(byModel: Map<any, { model: any; mats: number[] }>, model: any, origin: ArrayLike<number>, axis: ArrayLike<number>, scale: number) {
+  const s = scale || 1
+  const col = (k: number) => [axis[k * 3] * s, axis[k * 3 + 2] * s, -axis[k * 3 + 1] * s]
+  const [c0, c1, c2] = [col(0), col(1), col(2)]
+  const m = [...c0, 0, ...c1, 0, ...c2, 0, origin[0] * UNIT_SCALE, origin[2] * UNIT_SCALE, -origin[1] * UNIT_SCALE, 1]
+  const e = byModel.get(model) ?? { model, mats: [] }
+  e.mats.push(...m)
+  byModel.set(model, e)
+}
+
+function batchesOf(zone: LoadedZone, byModel: Map<any, { model: any; mats: number[] }>): StaticModelBatch[] {
   const out: StaticModelBatch[] = []
   for (const { model, mats } of byModel.values()) {
     const g = buildModelGeometry(zone, model)
     if (g) out.push({ name: model.name ?? '', ...g, matrices: Float32Array.from(mats) })
   }
   return out
+}
+
+/** Game Euler angles (pitch, yaw, roll in degrees) to the forward/left/up axes, row-major 3x3. */
+function anglesToAxis(pitch: number, yaw: number, roll: number): number[] {
+  const d = Math.PI / 180
+  const [sp, cp, sy, cy, sr, cr] = [Math.sin(pitch * d), Math.cos(pitch * d), Math.sin(yaw * d), Math.cos(yaw * d), Math.sin(roll * d), Math.cos(roll * d)]
+  return [
+    cp * cy, cp * sy, -sp,
+    sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, sr * cp,
+    cr * sp * cy + sr * sy, cr * sp * sy - sr * cy, cr * cp,
+  ]
+}
+
+/** Every XModel reachable from the zone, by name (zone assets, world static models, clipMap static models). */
+function modelsByName(zone: LoadedZone): Map<string, any> {
+  const out = new Map<string, any>()
+  const add = (m: any) => { if (m?.name && m.lodInfo && !out.has(m.name)) out.set(m.name, m) }
+  for (const a of zone.assets) if (a.typeName === 'XModel') add(a.value)
+  const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
+  for (const i of gfx?.dpvs?.smodelDrawInsts ?? []) add(resolveVal(zone, i.model))
+  const clip = zone.assets.find(a => a.typeName === 'clipMap_t')?.value
+  for (const s of clip?.staticModelList ?? []) add(resolveVal(zone, s.xmodel))
+  return out
+}
+
+/**
+ * Models placed by entities (script_model: vehicles, crates, destructibles…), drawn in their intact state.
+ * Entities whose model is not in the zone are skipped; `missing` lists their names.
+ */
+export function extractEntityModels(zone: LoadedZone, entities: Entity[]): { batches: StaticModelBatch[]; missing: string[] } {
+  const models = modelsByName(zone)
+  const byModel = new Map<any, { model: any; mats: number[] }>()
+  const missing = new Set<string>()
+  for (const e of entities) {
+    if (e.classname !== 'script_model' || !e.model || e.model.startsWith('*')) continue
+    const origin = parseVec3(e.origin)
+    if (!origin) continue
+    const model = models.get(e.model)
+    if (!model) { missing.add(e.model); continue }
+    const [p, y, r] = parseVec3(e.angles) ?? [0, 0, 0]
+    addInstance(byModel, model, origin, anglesToAxis(p, y, r), Number(e.modelscale) || 1)
+  }
+  return { batches: batchesOf(zone, byModel), missing: [...missing] }
 }
 
 // ---------------------------------------------------------------- materials
@@ -296,18 +347,45 @@ export function extractMaterialImages(zone: LoadedZone): Record<string, string |
 
 export interface Lightmap { width: number; height: number; rgba: Uint8Array }
 
+export interface Sun {
+  /** linear RGB, as authored (can exceed 1) */
+  color: [number, number, number]
+  /** unit vector toward the sun, scene space (Y up) */
+  direction: [number, number, number]
+}
+
+/** The map's sun: the last sun-type primary light of the ComWorld. */
+export function extractSun(zone: LoadedZone): Sun | null {
+  const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
+  const com = zone.assets.find(a => a.typeName === 'ComWorld')?.value
+  const lights: any[] = com?.primaryLights ?? []
+  const i = Math.min(gfx?.lastSunPrimaryLightIndex ?? 1, lights.length - 1)
+  const l = lights[i]
+  if (!l || !l.color || (l.color[0] + l.color[1] + l.color[2]) <= 0) return null
+  const [x, y, z] = [l.dir[0], l.dir[1], l.dir[2]]
+  const n = Math.hypot(x, y, z) || 1
+  return { color: [l.color[0], l.color[1], l.color[2]], direction: [x / n, z / n, -y / n] }
+}
+
+const SKY_TINT = [0.85, 0.97, 1.18] // shadows are lit by the (cool) sky
+const SUN_TINT = [1.08, 1.0, 0.9] // sunlit areas are warm
+const SATURATION = 1.3
+
 /**
  * Combine each lightmap pair into one RGBA image.
- * primary (L8) holds the sun-shadow mask, secondary (A8R8G8B8, half width) the sky/bounce color.
- * The exact engine formula is not reproduced: this is a calibrated approximation.
+ * primary (L8) holds the sun-shadow mask, secondary (A8R8G8B8, half width) the sky/bounce light.
+ * The exact engine formula is not reproduced: this is a calibrated approximation, tinted
+ * cool in the shadows and with the map's sun color in the light so the result is not greyscale.
  */
-export function extractLightmaps(zone: LoadedZone): Lightmap[] {
+export function extractLightmaps(zone: LoadedZone, sun: Sun | null = extractSun(zone)): Lightmap[] {
   const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
   const out: Lightmap[] = []
   const bytesOf = (img: any): Uint8Array | null => {
     const d = img?.texture?.loadDef?.data
     return d ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : null
   }
+  const m = sun ? Math.max(...sun.color, 1e-3) : 1
+  const sc = sun ? sun.color.map(c => c / m) : [1, 1, 1]
   for (const lm of gfx?.draw?.lightmaps ?? []) {
     const prim = resolveVal(zone, lm.primary), sec = resolveVal(zone, lm.secondary)
     const pd = bytesOf(prim), sd = bytesOf(sec)
@@ -316,13 +394,16 @@ export function extractLightmaps(zone: LoadedZone): Lightmap[] {
     const rgba = new Uint8Array(w * h * 4)
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        const sun = pd[y * w + x] / 255
+        const sun01 = pd[y * w + x] / 255
         const so = ((Math.min(sh - 1, (y * sh / h) | 0)) * sw + Math.min(sw - 1, (x * sw / w) | 0)) * 4
         const o = (y * w + x) * 4
-        rgba[o] = Math.min(255, 18 + sd[so + 2] * 3.4 + sun * 140)
-        rgba[o + 1] = Math.min(255, 18 + sd[so + 1] * 3.4 + sun * 132)
-        rgba[o + 2] = Math.min(255, 20 + sd[so] * 3.4 + sun * 112)
-        rgba[o + 3] = 255
+        const amb = [sd[so + 2], sd[so + 1], sd[so]]
+        let r = 0, g = 0, b = 0
+        const c = [0, 0, 0]
+        for (let k = 0; k < 3; k++) c[k] = 30 + amb[k] * 3.4 * SKY_TINT[k] + sun01 * 140 * sc[k] * SUN_TINT[k]
+        const lum = (c[0] + c[1] + c[2]) / 3
+        r = lum + (c[0] - lum) * SATURATION; g = lum + (c[1] - lum) * SATURATION; b = lum + (c[2] - lum) * SATURATION
+        rgba[o] = Math.max(0, Math.min(255, r)); rgba[o + 1] = Math.max(0, Math.min(255, g)); rgba[o + 2] = Math.max(0, Math.min(255, b)); rgba[o + 3] = 255
       }
     }
     out.push({ width: w, height: h, rgba })

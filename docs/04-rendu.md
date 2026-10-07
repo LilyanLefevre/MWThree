@@ -20,7 +20,7 @@ Chaque **surface** référence une plage de sommets (`firstVertex`, `vertexCount
 
 Les surfaces sont regroupées **par matériau** (un groupe d'indices par matériau) ; chaque matériau reçoit la texture de sa *color map* si elle a été trouvée, sinon une couleur de debug dérivée du nom. Les textures sont chargées après la géométrie : la map est explorable tout de suite, puis se texture. Les images avec transparence (feuillage, grillages) utilisent un alpha-test à 0,5. ### Lightmaps
 
-Le `GfxWorld` contient des atlas d'éclairage précalculé (`draw.lightmaps`) : un masque de lumière du soleil (`primary`, 1 octet/pixel) et une couleur de ciel/rebond (`secondary`, RGBA, moitié de largeur). Chaque sommet porte des coordonnées d'atlas (`lmapCoord`, décalées de 28 octets dans `GfxWorldVertex`) et chaque surface un `lightmapIndex`. Les deux images sont combinées côté CPU en une seule texture RGBA (`extractLightmaps`) et appliquées en `lightMap` d'un `MeshBasicMaterial` (couleur = albedo × lumière). **La formule exacte du moteur n'est pas reproduite** : les gains sont calibrés à l'œil. Les surfaces sans lightmap (index 31) et les props restent éclairés par des lumières three.js classiques ; pas encore de normal maps ni de shaders d'origine.
+Le `GfxWorld` contient des atlas d'éclairage précalculé (`draw.lightmaps`) : un masque de lumière du soleil (`primary`, 1 octet/pixel) et une couleur de ciel/rebond (`secondary`, RGBA, moitié de largeur). Chaque sommet porte des coordonnées d'atlas (`lmapCoord`, décalées de 28 octets dans `GfxWorldVertex`) et chaque surface un `lightmapIndex`. Le soleil (`ComWorld.primaryLights`, dernière lumière de type soleil) fournit sa couleur et sa direction : les zones éclairées sont teintées avec la couleur du soleil, les ombres avec un ciel froid, et la saturation est légèrement augmentée pour éviter un rendu en niveaux de gris. Les props reçoivent un `directionalLight` orienté et coloré comme le soleil de la map. Les deux images sont combinées côté CPU en une seule texture RGBA (`extractLightmaps`) et appliquées en `lightMap` d'un `MeshBasicMaterial` (couleur = albedo × lumière). **La formule exacte du moteur n'est pas reproduite** : les gains sont calibrés à l'œil. Les surfaces sans lightmap (index 31) et les props restent éclairés par des lumières three.js classiques ; pas encore de normal maps ni de shaders d'origine.
 
 ### Modèles statiques (props)
 
@@ -35,6 +35,8 @@ flowchart LR
 ```
 
 Chaque placement donne une origine, une base orthonormée (`axis`, 3×3) et une échelle ; ils deviennent la matrice d'instance de l'`InstancedMesh` du modèle (≈ 800 000 triangles dessinés pour 108 000 triangles uniques sur `mp_dome`). Seul le LOD 0 est utilisé.
+
+**Props issus d'entités** : les entités `script_model` (véhicules, caisses, objets destructibles) sont placées de la même façon, dans leur état intact : le nom du `model` est cherché parmi les `XModel` de la zone, l'orientation vient de `angles` (pitch, yaw, roll). Les modèles absents de la zone sont ignorés (≈ 1 par map sur `mp_seatown`). Ils sont statiques : ni explosion ni physique.
 
 ## Repères et sens des triangles
 
