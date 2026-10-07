@@ -4,6 +4,7 @@ import { PointerLockControls } from '@react-three/drei'
 import { CapsuleCollider, RigidBody, useRapier } from '@react-three/rapier'
 import type { RapierRigidBody } from '@react-three/rapier'
 import * as THREE from 'three'
+import { playerState } from '../playerState'
 
 const RADIUS = 0.35
 const HALF = 0.45 // capsule half-height (cylinder part)
@@ -70,6 +71,8 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
       const t0 = b.translation()
       camera.position.set(t0.x, t0.y + EYE, t0.z)
     }
+    playerState.x = camera.position.x; playerState.y = camera.position.y; playerState.z = camera.position.z
+    playerState.yaw = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y
     if (import.meta.env.DEV) (window as unknown as { __player?: unknown }).__player = { body: b.translation(), cam: camera.position.toArray(), fly: fly.current }
     if (!controls.current?.isLocked && !FREE_INPUT) return
     const d = Math.min(dt, 0.05)

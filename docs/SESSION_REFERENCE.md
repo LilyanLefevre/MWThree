@@ -10,7 +10,7 @@
 | 3 — Collision + déplacement FPS | ✓ — brushes `clipMap_t` solides/playerclip → enveloppes convexes → un trimesh Rapier (+ triangles de terrain) ; marche, saut, vol libre, **C** affiche la collision. Reste : collision des modèles statiques |
 | 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques et props d'entités (`script_model`, état intact) instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Manquent : LOD, collision des props |
 | 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (approximation). Manquent : normal/spec maps, éclairage des props (light probes), shaders |
-| 6 — Entités / UX | ◐ — entités décodées (spawns utilisés pour placer le joueur) ; pas d'overlay debug |
+| 6 — Entités / UX | ✓ — noms de maps, téléportation entre spawns, repères de spawns, mini-carte. Reste : triggers/objectifs |
 
 ## Lancer
 
@@ -21,7 +21,9 @@ npm run dev                          # http://localhost:5173
 
 - Bouton « Select MW3 Game Folder » → choisir le dossier d'installation (ou un dossier contenant `zone/<map>/mp_<map>.ff`), puis cliquer une map.
 - Raccourci dev (Vite uniquement) : `http://localhost:5173/?dev=dome` charge `inputs/zone/dome/mp_dome.ff` ; `&free=1` accepte le clavier sans pointer lock (tests automatisés).
-- Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, **V = vol libre**, **C** = afficher la collision (Espace/Ctrl = monter/descendre).
+- Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, **V = vol libre**, **C** = afficher la collision, **T / Maj+T** = spawn suivant/précédent (spawns deathmatch), **O** = repères de spawns (bleu alliés, rouge axe, vert deathmatch, jaune autres modes)
+- Mini-carte en bas à gauche : zone jouable (délimitée par les spawns) vue de dessus, ombrée par la hauteur, avec les spawns et le joueur
+- Les maps sont listées sous leur nom commercial (Dome, Fallen, Bakaara…) (Espace/Ctrl = monter/descendre).
 - Chargement : géométrie en quelques secondes (Web Worker), puis les textures arrivent (≈ 300 images pour `mp_dome`) ; voir « Perf » dans `RE_NOTES.md`.
 - **Cache** : le résultat décodé (géométrie + textures) est gardé dans IndexedDB ; recharger la même map prend ~2-3 s au lieu de ~30 s. Incrémenter `CACHE_VERSION` (`packages/viewer/src/worker/cache.ts`) quand l'extraction change.
 - Les textures sont lues dans `main/*.iwd` du dossier choisi (ou `inputs/main/` avec `?dev=`).
