@@ -4,6 +4,7 @@ export { ZoneLoader, PlainArray, schema as iw5Schema, ASSET_STRUCT_BY_TYPE, XFIL
 export type { LoadedZone, LoadedAsset } from './zone/ZoneLoader.js'
 export { extractWorldMesh, extractMapEnts, extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, materialColor, parseEntities, parseVec3, UNIT_SCALE, ENTITY_KEYS } from './zone/MapExtract.js'
 export type { WorldMesh, Entity, StaticModelBatch, MaterialGroup, Lightmap, Sun } from './zone/MapExtract.js'
+export { computePropLighting } from './zone/PropLighting.js'
 export { extractCollisionMesh } from './zone/Collision.js'
 export type { CollisionMesh } from './zone/Collision.js'
 export { IwdArchive, ImageLibrary } from './textures/Iwd.js'

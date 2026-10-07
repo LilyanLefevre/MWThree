@@ -18,6 +18,7 @@ function Batch({ data, mats }: { data: StaticModelData; mats: Map<string, THREE.
     const m = new THREE.InstancedMesh(geometry, data.groups.map(g => mats.get(g.material)!), data.matrices.length / 16)
     ;(m.instanceMatrix.array as Float32Array).set(data.matrices)
     m.instanceMatrix.needsUpdate = true
+    if (data.instanceColors) m.instanceColor = new THREE.InstancedBufferAttribute(data.instanceColors, 3)
     m.frustumCulled = false // the bounding sphere is the model's, not the instances'
     return m
   }, [geometry, data, mats])
