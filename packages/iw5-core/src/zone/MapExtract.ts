@@ -196,8 +196,8 @@ function halfToFloat(h: number): number {
 }
 
 /** LOD0 geometry of one XModel, in meters with the game's axes. */
-function buildModelGeometry(zone: LoadedZone, model: any): Omit<StaticModelBatch, 'name' | 'matrices'> | null {
-  const lod = model.lodInfo?.[0]
+export function buildModelGeometry(zone: LoadedZone, model: any, lodIndex = 0): Omit<StaticModelBatch, 'name' | 'matrices'> | null {
+  const lod = model.lodInfo?.[Math.min(lodIndex, Math.max(0, (model.numLods ?? 1) - 1))]
   const surfsAsset = resolveVal(zone, lod?.modelSurfs)
   const surfs: any[] | undefined = surfsAsset?.surfs
   if (!surfs?.length) return null

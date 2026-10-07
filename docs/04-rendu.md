@@ -69,7 +69,8 @@ flowchart TD
   - un **brush** est un volume convexe défini par 6 plans axiaux implicites (la boîte `brushBounds`) plus `numsides` plans explicites ; seuls les brushes *solid* ou *playerclip* sont retenus ;
   - chaque brush est converti en polyèdre (intersection des triples de plans, filtrage des points intérieurs, tri des sommets de chaque face) puis triangulé ;
   - les triangles de terrain de `clipMap_t` (`verts`, `triIndices`) sont ajoutés ;
-  - le tout forme un seul trimesh Rapier (`mp_dome` : 6 053 brushes, ≈ 125 000 triangles, ≈ 2 s).
+  - les modèles statiques qui ont une collision en jeu (`clipMap_t.staticModelList`) ajoutent le maillage de leur LOD le plus grossier, placé avec l'inverse de `invScaledAxis` (`mp_dome` : 2 132 props) ;
+  - le tout forme un seul trimesh Rapier (`mp_dome` : 6 053 brushes + 2 132 props, ≈ 270 000 triangles).
 
 ## Performance (machine de dev, Chrome)
 
