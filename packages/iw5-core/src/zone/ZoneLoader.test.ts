@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { FastFileLoader } from '../FastFileLoader.js'
 import { ZoneLoader } from './ZoneLoader.js'
 import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractWorldMesh } from './MapExtract.js'
+import { sampleLightGrid } from './LightGrid.js'
 
 // Integration test against a real retail zone. Game files are never committed:
 // the test is skipped when the local copy is missing.
@@ -51,6 +52,23 @@ describe.skipIf(!existsSync(DOME))('ZoneLoader (mp_dome.ff)', () => {
     const sun = extractSun(zone)!
     expect(Math.hypot(...sun.direction)).toBeCloseTo(1, 3)
     expect(sun.color[0]).toBeGreaterThan(0)
+  })
+
+  it('finds light grid probes for the props, sunlit and shaded', () => {
+    const grid = zone.assets.find(a => a.typeName === 'GfxWorld')!.value.lightGrid
+    let found = 0, total = 0, sunlit = 0, shaded = 0
+    for (const b of extractStaticModels(zone)) for (let i = 0; i < b.matrices.length / 16; i++) {
+      const m = b.matrices.subarray(i * 16)
+      const s = sampleLightGrid(grid, m[12] / 0.0254, -m[14] / 0.0254, m[13] / 0.0254 + 16)
+      total++
+      if (!s) continue
+      found++
+      if (s.sunWeight > 0.99) sunlit++
+      if (s.sunWeight < 0.01) shaded++
+    }
+    expect(found / total).toBeGreaterThan(0.98)
+    expect(sunlit / found).toBeGreaterThan(0.4)
+    expect(shaded / found).toBeGreaterThan(0.1)
   })
 
   it('extracts map entities', () => {

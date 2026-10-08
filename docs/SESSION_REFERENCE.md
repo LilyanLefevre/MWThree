@@ -9,7 +9,7 @@
 | 2 — Zone loader (assets, pointeurs, blocs) | ✓ — les 16 maps `mp_*` de `inputs/zone/` se chargent à l'octet près |
 | 3 — Collision + déplacement FPS | ✓ — brushes `clipMap_t` solides/playerclip → enveloppes convexes → un trimesh Rapier (+ triangles de terrain) ; marche, saut, vol libre, **C** affiche la collision. Reste : collision des modèles statiques |
 | 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques et props d'entités (`script_model`, état intact) instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Manquent : LOD, collision des props |
-| 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (approximation). Manquent : normal/spec maps, éclairage des props (light probes), shaders |
+| 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (approximation). Props éclairés par la light grid. Manquent : spec maps, shaders d'origine |
 | 6 — Entités / UX | ✓ — noms de maps, téléportation entre spawns, repères de spawns, objectifs des modes de jeu, mini-carte |
 
 ## Lancer
@@ -28,6 +28,13 @@ npm run dev                          # http://localhost:5173
 - Chargement : géométrie en quelques secondes (Web Worker), puis les textures arrivent (≈ 300 images pour `mp_dome`) ; voir « Perf » dans `RE_NOTES.md`.
 - **Cache** : le résultat décodé (géométrie + textures) est gardé dans IndexedDB ; recharger la même map prend ~2-3 s au lieu de ~30 s. Incrémenter `CACHE_VERSION` (`packages/viewer/src/worker/cache.ts`) quand l'extraction change.
 - Les textures sont lues dans `main/*.iwd` du dossier choisi (ou `inputs/main/` avec `?dev=`).
+
+### Sur le PC de test (Windows, `ssh pc`)
+
+Clone dans `C:\Users\Lilyan\mwthree` (avec `inputs/`). Serveur : `ssh pc "cd mwthree\packages\viewer && npx vite --host 0.0.0.0 --port 5173"`,
+ouvert depuis le Mac sur `http://192.168.1.207:5173/?dev=dome&free=1`. Playwright tourne sur le PC (vrai GPU, fps représentatifs) ;
+lancer `playwright-cli -s=mw3 open …` via `Invoke-CimMethod Win32_Process Create`, sinon le navigateur meurt avec la session SSH.
+Premier chargement de `mp_dome` mesuré sur le PC (dev) : décompression 947 ms, lecture 342 ms, textures 925 ms ; 60 fps (vsync).
 
 ## Vérifier le loader
 
@@ -60,7 +67,7 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 
 ## Prochaines étapes
 
-1. **Éclairage** : finir le décodage de la light grid (structure en partie documentée dans `RE_NOTES.md`, la table RLE des rangées reste à comprendre) pour remplacer l'éclairage des props par le lightmap du sol ; formule exacte des lightmaps ; specular (demande de reproduire les shaders d'origine).
+1. **Éclairage** : props éclairés par la light grid (fait). Reste : formule exacte des lightmaps du monde (gains à l'œil), gains du shader des props (`SUN_GAIN`, `PROP_GAIN` dans `StaticModels.tsx`) à caler sur des captures du jeu, traces `needsTrace` ignorées, specular (shaders d'origine).
 2. **Performance du rendu** : LOD 0/1 des props en place (−37 % de triangles sur `mp_dome`) ; pistes suivantes : LOD 2+, culling par cellule (`GfxWorld.cells`/portails) si le framerate devient un problème.
 3. **Premier chargement** (≈ 11 s au total sur `mp_dome` en dev, dont ≈ 6 s de textures) : décodage paresseux des structs, ciel en cube map GPU au lieu de la conversion équirectangulaire (≈ 1,5 s). Le cache IndexedDB couvre les rechargements.
 

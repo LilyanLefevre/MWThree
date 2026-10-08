@@ -29,7 +29,7 @@ function buildGeometry(zone: LoadedZone, fileName: string, zoneBytes: number, ti
   const staticModels = [...worldModels, ...entityModels]
   const sun = extractSun(zone)
   const lightmaps = extractLightmaps(zone, sun)
-  const propLight = computePropLighting(mesh, lightmaps, staticModels)
+  const propLight = computePropLighting(zone.assets.find(a => a.typeName === 'GfxWorld')?.value?.lightGrid, staticModels)
 
   const spawns: SpawnPoint[] = []
   for (const ent of entities) {
@@ -48,7 +48,7 @@ function buildGeometry(zone: LoadedZone, fileName: string, zoneBytes: number, ti
     positions: mesh.positions, normals: mesh.normals, uvs: mesh.uvs, lmUvs: mesh.lmUvs, vertexColors: mesh.vertexColors,
     lightmaps, colors: mesh.colors, indices: mesh.indices, groups: mesh.groups,
     collision: collision && { positions: collision.positions, indices: collision.indices, brushes: collision.brushCount, models: collision.modelCount },
-    staticModels: staticModels.map((m, i) => ({ ...m, instanceColors: propLight[i] })),
+    staticModels: staticModels.map((m, i) => ({ ...m, instanceLight: propLight[i] })),
     sun,
     spawns,
     objectives: extractObjectives(entities),

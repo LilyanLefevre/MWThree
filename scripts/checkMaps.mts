@@ -21,7 +21,7 @@ for (const dir of readdirSync(root).sort()) {
     const spawns = ents.filter(e => /spawn/.test(e.classname ?? '')).length
     const entityModels = extractEntityModels(z, ents)
     const sun = extractSun(z), lightmaps = extractLightmaps(z, sun)
-    computePropLighting(mesh, lightmaps, [...props, ...entityModels.batches])
+    computePropLighting(z.assets.find(a => a.typeName === 'GfxWorld')?.value?.lightGrid, [...props, ...entityModels.batches])
     extractMaterialNormals(z)
     const extra = `entityProps ${entityModels.batches.reduce((a, p) => a + p.matrices.length / 16, 0)} (missing ${entityModels.missing.length}) lightmaps ${lightmaps.length} sun ${sun ? 'yes' : 'no'} sky ${extractSkyImage(z) ?? '-'} objectives ${extractObjectives(ents).length}`
     let bad = 0; for (const i of mesh.indices) if (i >= mesh.positions.length / 3) bad++
