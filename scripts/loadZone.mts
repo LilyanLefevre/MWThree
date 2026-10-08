@@ -18,7 +18,7 @@ try {
   console.log('OK assets', z.assets.length, 'bytesRead', z.bytesRead, '/', zone.byteLength)
   console.log('header blocks', z.header.blockSizes.join(','))
   console.log('sim blocks   ', z.blockUsed.join(','))
-  console.log(loader.stats, loader.diagnostics.slice(0, 5))
+  console.log(loader.stats)
 } catch (e) {
   console.log('FAIL after', last)
   console.log(e)
