@@ -21,7 +21,7 @@ npm run dev                          # http://localhost:5173
 
 - Bouton « Select MW3 Game Folder » → choisir le dossier d'installation (ou un dossier contenant `zone/<map>/mp_<map>.ff`), puis cliquer une map.
 - Raccourci dev (Vite uniquement) : `http://localhost:5173/?dev=dome` charge `inputs/zone/dome/mp_dome.ff` ; `&free=1` accepte le clavier sans pointer lock (tests automatisés).
-- Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, Ctrl = accroupi, **V = vol libre**, **C** = afficher la collision, **T / Maj+T** = spawn suivant/précédent (spawns deathmatch), **O** = repères de spawns (bleu alliés, rouge axe, vert deathmatch, jaune autres modes), **B** = objectifs (drapeaux de domination A/B/C avec leur rayon de capture, sites de bombe, drapeaux CTF, QG, sabotage ; affichés par défaut, aussi sur la mini-carte)
+- Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, Ctrl = accroupi, **V = vol libre**, **C** = afficher la collision, **T / Maj+T** = spawn suivant/précédent (spawns deathmatch), **O** = repères de spawns (bleu alliés, rouge axe, vert deathmatch, jaune autres modes), **G** = volumes des triggers (orange : utilisation/bombe, jaune : zones, rouge : dégâts), **B** = objectifs (drapeaux de domination A/B/C avec leur rayon de capture, sites de bombe, drapeaux CTF, QG, sabotage ; affichés par défaut, aussi sur la mini-carte)
 - Mini-carte en bas à gauche : zone jouable (délimitée par les spawns) vue de dessus, ombrée par la hauteur, avec les spawns et le joueur
 - Les maps sont listées sous leur nom commercial (Dome, Fallen, Bakaara…) (Espace/Ctrl = monter/descendre).
 - Chargement : géométrie en quelques secondes (Web Worker), puis les textures arrivent (≈ 300 images pour `mp_dome`) ; voir « Perf » dans `RE_NOTES.md`.
@@ -62,7 +62,7 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 1. **Éclairage** : formule exacte des lightmaps, vraie light grid du moteur pour les props (aujourd'hui : lightmap du sol sous chaque prop), specular (demande de reproduire les shaders d'origine).
 2. **Performance du rendu** : LOD 0/1 des props en place (−37 % de triangles sur `mp_dome`) ; pistes suivantes : LOD 2+, culling par cellule (`GfxWorld.cells`/portails) si le framerate devient un problème.
 3. **Premier chargement** : décodage paresseux des structs ; textures (≈ 11 s sur `mp_dome` en dev, déjà envoyées compressées au GPU) — un pool de workers a été essayé sans gain mesurable. Le cache IndexedDB couvre les rechargements.
-4. **Triggers** : volumes exacts des triggers de `MapEnts.trigger` (aujourd'hui seuls les objectifs sont placés, par leur origine).
+4. **Triggers** : appliquer les *slabs* qui découpent les boîtes des triggers (aujourd'hui : boîtes englobantes des hulls).
 
 ## Captures
 

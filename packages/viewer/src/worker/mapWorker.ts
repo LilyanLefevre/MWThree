@@ -1,6 +1,6 @@
 import {
   FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, iwiCompressedMips, extractWorldMesh, extractMapEnts, extractCollisionMesh,
-  extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, extractSkyImage, extractObjectives, computePropLighting, parseVec3,
+  extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, extractSkyImage, extractObjectives, extractTriggers, computePropLighting, parseVec3,
   parseIwiCube, cubeToEquirect,
 } from '@mwthree/iw5-core'
 import type { LoadedZone } from '@mwthree/iw5-core'
@@ -52,6 +52,7 @@ function buildGeometry(zone: LoadedZone, fileName: string, zoneBytes: number, ti
     sun,
     spawns,
     objectives: extractObjectives(entities),
+    triggers: extractTriggers(zone, entities),
     stats: {
       zoneBytes, assets: zone.assets.length, assetCounts: counts,
       entities: entities.length, surfaces: mesh.surfaces.length,
