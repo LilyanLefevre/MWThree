@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { FastFileLoader } from '../FastFileLoader.js'
 import { ZoneLoader } from './ZoneLoader.js'
-import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractWorldMesh } from './MapExtract.js'
+import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractFog, extractWorldMesh } from './MapExtract.js'
 import { sampleLightGrid } from './LightGrid.js'
 
 // Integration test against a real retail zone. Game files are never committed:
@@ -69,6 +69,10 @@ describe.skipIf(!existsSync(DOME))('ZoneLoader (mp_dome.ff)', () => {
     expect(found / total).toBeGreaterThan(0.98)
     expect(sunlit / found).toBeGreaterThan(0.4)
     expect(shaded / found).toBeGreaterThan(0.1)
+  })
+
+  it('reads the fog of the createart script', () => {
+    expect(extractFog(zone)).toEqual({ startDist: 1274, halfwayDist: 3080, color: [0.54, 0.63, 0.68], maxOpacity: 0.51 })
   })
 
   it('extracts map entities', () => {

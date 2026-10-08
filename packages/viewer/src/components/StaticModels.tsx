@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { PROP_LIGHT_STRIDE, type ModelGeometry } from '@mwthree/iw5-core'
 import type { MapWorld } from '../types'
 import type { StaticModelData } from '../worker/protocol'
-import { buildMaterials } from './materials'
+import { addFog, buildMaterials } from './materials'
 
 const LOD_REFRESH = 0.25 // seconds between near/far reassignments
 /** dev/testing: ?nolod draws every instance with LOD 0 */
@@ -40,6 +40,7 @@ function applyGridLighting(mat: THREE.Material, sun: MapWorld['sun']) {
   const dir = new THREE.Vector3(...(sun?.direction ?? [0.3, 0.8, 0.5])).normalize()
   const color = new THREE.Vector3(...(sun?.color ?? [1, 1, 1]))
   mat.onBeforeCompile = shader => {
+    addFog(shader)
     shader.uniforms.uSunDir = { value: dir }
     shader.uniforms.uSunColor = { value: color }
     const v = [0, 1, 2, 3, 4, 5]

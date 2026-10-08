@@ -1,6 +1,7 @@
 // High-level extraction of renderable / simulatable data from a loaded zone.
 import type { LoadedZone } from './ZoneLoader.js'
 import { PlainArray } from './ZoneLoader.js'
+import * as pako from 'pako'
 import { convexFaces, type Plane } from './Convex.js'
 
 /** Inches (game units) to meters. */
@@ -372,6 +373,25 @@ export interface Sun {
   color: [number, number, number]
   /** unit vector toward the sun, scene space (Y up) */
   direction: [number, number, number]
+}
+
+/** Exponential fog set by the map's `maps/createart/<map>_fog.gsc` (game units, color as authored, 0-1). */
+export interface Fog { startDist: number; halfwayDist: number; color: [number, number, number]; maxOpacity: number }
+
+/**
+ * Reads the `ent.<field> = <number>;` assignments of the map's createart fog script (a RawFile, zlib when compressedLen > 0).
+ * Only the first `create_vision_set_fog` block: it is the map's own vision set, later ones are local areas (radar: bunker_area).
+ */
+export function extractFog(zone: LoadedZone): Fog | null {
+  const raw = zone.assets.find(a => a.typeName === 'RawFile' && /createart\/[^/]*_fog\.gsc$/.test(a.value?.name ?? ''))?.value
+  if (!raw?.buffer) return null
+  const buf = new Uint8Array(raw.buffer.buffer, raw.buffer.byteOffset, raw.buffer.byteLength) // char* comes out as Int8Array
+  const bytes = raw.compressedLen ? pako.inflate(buf) : buf
+  const v: Record<string, number> = {}
+  const block = new TextDecoder().decode(bytes).split('create_vision_set_fog')[1] ?? ''
+  for (const m of block.matchAll(/ent\.(\w+)\s*=\s*(-?[\d.]+)\s*;/g)) v[m[1]] = Number(m[2])
+  if (!(v.halfwayDist > 0)) return null
+  return { startDist: v.startDist ?? 0, halfwayDist: v.halfwayDist, color: [v.red ?? 1, v.green ?? 1, v.blue ?? 1], maxOpacity: v.maxOpacity ?? 1 }
 }
 
 /** The map's sun: the last sun-type primary light of the ComWorld. */

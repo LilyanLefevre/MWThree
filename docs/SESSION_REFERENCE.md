@@ -67,7 +67,7 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 
 ## Prochaines étapes
 
-1. **Éclairage** : lightmaps du monde et props suivent maintenant les formules des shaders du moteur (voir `RE_NOTES.md`). Reste : brouillard, specular/normal maps du monde (shaders d'origine), couleur de sommet × albédo, traces `needsTrace` de la light grid, ombres dynamiques des props.
+1. **Éclairage** : lightmaps, props et brouillard suivent les formules des shaders du moteur (voir `RE_NOTES.md`). Reste : post-traitement du fichier `vision` (teintes `r_film*`, glow), « sun fog » de 5 maps, specular/normal maps du monde, traces `needsTrace` de la light grid, ombres dynamiques des props.
 2. **Performance du rendu** : LOD 0/1 des props en place (−37 % de triangles sur `mp_dome`) ; pistes suivantes : LOD 2+, culling par cellule (`GfxWorld.cells`/portails) si le framerate devient un problème.
 3. **Premier chargement** (≈ 11 s au total sur `mp_dome` en dev, dont ≈ 6 s de textures) : décodage paresseux des structs, ciel en cube map GPU au lieu de la conversion équirectangulaire (≈ 1,5 s). Le cache IndexedDB couvre les rechargements.
 

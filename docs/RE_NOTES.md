@@ -111,6 +111,16 @@ secondary sur toute sa hauteur : l'ambiant venait d'une autre zone de l'atlas (f
 Les props (shaders `lp_*_sun`) : `(2·texel)² + saturate(N·sunDir) × sunColor × texel.w`, texel = texture 3D 4×4×4 de la light grid
 lue sur la surface du cube (`n / max|n|`), `w` = part de soleil visible.
 
+### Brouillard et vision (RawFiles de la zone)
+
+La zone d'une map contient en clair (RawFile, zlib si `compressedLen > 0` ; le buffer `char*` sort en `Int8Array`, à relire en
+`Uint8Array` pour pako) : `maps/createart/<map>_fog.gsc` (brouillard), `vision/<map>.vision` (dvars `r_film*` : teintes de
+post-traitement, glow) et `sun/<map>.sun` (sprite et flare du soleil). Le script de brouillard enchaîne des blocs
+`ent = create_vision_set_fog("<nom>"); ent.startDist = …;` : le premier est celui de la map. Densité du moteur = ln 2 / halfwayDist
+(`setExpFog`, KisakCOD `g_scr_main_mp.cpp`) ; le vertex shader calcule `clamp(exp(d·fogConsts.z + fogConsts.w), fogConsts.y, 1)`,
+cohérent avec `z = −densité`, `w = densité·start`, `y = 1 − maxOpacity`. Valeurs `mp_dome` : start 1274, halfway 3080,
+couleur (0.54, 0.63, 0.68), maxOpacity 0.51. Couleurs de sommet du monde : blanches hors décalques sur les 16 maps (vérifié).
+
 ### Light grid (`GfxWorld.lightGrid`) — décodé et utilisé pour les props
 
 Sondes de lumière du moteur pour les modèles. La logique de lookup est reprise du renderer IW3 décompilé
