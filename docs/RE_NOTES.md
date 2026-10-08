@@ -111,6 +111,14 @@ secondary sur toute sa hauteur : l'ambiant venait d'une autre zone de l'atlas (f
 Les props (shaders `lp_*_sun`) : `(2·texel)² + saturate(N·sunDir) × sunColor × texel.w`, texel = texture 3D 4×4×4 de la light grid
 lue sur la surface du cube (`n / max|n|`), `w` = part de soleil visible.
 
+### Matériaux mélangés (technique sets)
+
+Le mode de mélange se lit dans le nom du technique set : `<préfixe>_unlit_[falloff_]{add,screen,multiply}[_lin]` (surfaces
+du monde `wc_`, modèles `mc_`) et `mc_effect_[zfeather_][falloff_]{add,screen}[_lin][_nofog][_eyeoffset]` (faisceaux, halos et
+flares des modèles de projecteurs). Sur `mp_dome` : 37 matériaux, dont `wc/ch_godray01` (screen, falloff, lin, 286 triangles
+dans le bunker), les numéros des conteneurs (add) et 20 décalques de taches (multiply). Les `stateBitsTable` lus par le chargeur
+valent 0 (non exploités) : le nom du technique set est la seule source utilisée.
+
 ### Brouillard et vision (RawFiles de la zone)
 
 La zone d'une map contient en clair (RawFile, zlib si `compressedLen > 0` ; le buffer `char*` sort en `Int8Array`, à relire en

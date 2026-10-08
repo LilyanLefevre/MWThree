@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { FastFileLoader } from '../FastFileLoader.js'
 import { ZoneLoader } from './ZoneLoader.js'
-import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractFog, extractWorldMesh } from './MapExtract.js'
+import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractFog, extractMaterialBlends, extractWorldMesh } from './MapExtract.js'
 import { sampleLightGrid } from './LightGrid.js'
 
 // Integration test against a real retail zone. Game files are never committed:
@@ -73,6 +73,13 @@ describe.skipIf(!existsSync(DOME))('ZoneLoader (mp_dome.ff)', () => {
 
   it('reads the fog of the createart script', () => {
     expect(extractFog(zone)).toEqual({ startDist: 1274, halfwayDist: 3080, color: [0.54, 0.63, 0.68], maxOpacity: 0.51 })
+  })
+
+  it('finds the blend mode of god rays, glows and multiply decals', () => {
+    const b = extractMaterialBlends(zone)
+    expect(b['wc/ch_godray01']).toEqual({ blend: 'screen', falloff: true, linear: true })
+    expect(b['mc/gfx_floodlight_beam_godray75']).toEqual({ blend: 'add', falloff: true, linear: true })
+    expect(b['wc/com_stain_01']).toEqual({ blend: 'multiply', falloff: false, linear: true })
   })
 
   it('extracts map entities', () => {
