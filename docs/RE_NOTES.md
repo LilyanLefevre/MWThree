@@ -96,10 +96,22 @@ chaînes-constantes du moteur. Identifiés par les valeurs : `1668 classname`, `
 - Repère jeu : Z vers le haut, unités = pouces. Scène : `(x, z, −y) × 0.0254` (mètres, Y vers le haut).
 - `GfxWorld` fait 640 octets ; le premier mot (`name`) est typiquement une **référence** vers une chaîne déjà chargée.
 
+### Light grid (`GfxWorld.lightGrid`) — décodage partiel, non utilisé
+
+Sondes de lumière du moteur pour les objets dynamiques/props. Observé sur `mp_dome` :
+- `mins` / `maxs` en coordonnées de grille : x 3830–4266, y 3924–4381, z 2040–2070. Hypothèse cohérente avec la map :
+  cellule = `floor(x / 32) + 4096`, `floor(y / 32) + 4096`, `floor(z / 64) + 2048` (couvre aussi les palettes d'airdrop à x ≈ −8256).
+- `rowAxis = 0`, `colAxis = 1` ; `rowDataStart[r]` (une entrée par rangée x, `0xFFFF` = rangée vide) est un offset **en mots de 4 octets** dans `rawRowData`.
+- En-tête de rangée (12 octets) : `colStart u16`, `colCount u16`, `zStart u16`, `zCount u16`, `firstEntry u32` (absolus), suivi d'une
+  table de lookup RLE (non comprise : `2 2 0 0` pour une rangée 2×2 pleine ; rangée 200 : `2 2 0 35 0 2 2 0 15 0 2 2 …`).
+- `entries[i]` = `{ colorsIndex, primaryLightIndex, needsTrace }` ; `colors[k].rgb[56][3]` = 56 échantillons directionnels RGB par sonde.
+Tant que la RLE n'est pas comprise, les props sont éclairés par le lightmap du sol sous eux (`computePropLighting`).
+
 ## 5. Perf (machine de dev lente, Chrome)
 
-`mp_dome` : décompression ≈ 14 s (pako), lecture de zone ≈ 11 s. Pistes : décodage paresseux des structs,
-éviter `slice` des gros tableaux, fflate/WASM pour l'inflate.
+`mp_dome` (premier chargement, en dev) : décompression ≈ 3 s (zlib natif), lecture de la zone ≈ 1,5–2 s, textures ≈ 6 s
+(requêtes HTTP Range + inflate natif, images S3TC envoyées compressées au GPU). Rechargement depuis le cache IndexedDB ≈ 2,5 s.
+Essayés sans gain : fflate, pool de workers pour les textures.
 
 ## 6. Règles de code
 
