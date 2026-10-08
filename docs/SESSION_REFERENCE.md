@@ -63,7 +63,6 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 1. **Éclairage** : formule exacte des lightmaps, vraie light grid du moteur pour les props (aujourd'hui : lightmap du sol sous chaque prop), specular (demande de reproduire les shaders d'origine).
 2. **Performance du rendu** : LOD 0/1 des props en place (−37 % de triangles sur `mp_dome`) ; pistes suivantes : LOD 2+, culling par cellule (`GfxWorld.cells`/portails) si le framerate devient un problème.
 3. **Premier chargement** : décodage paresseux des structs ; textures (≈ 11 s sur `mp_dome` en dev, déjà envoyées compressées au GPU) — un pool de workers a été essayé sans gain mesurable. Le cache IndexedDB couvre les rechargements.
-4. **Triggers** : appliquer les *slabs* qui découpent les boîtes des triggers (aujourd'hui : boîtes englobantes des hulls).
 
 ## Captures
 

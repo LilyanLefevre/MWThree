@@ -60,7 +60,7 @@ Chaque placement donne une origine, une base orthonormée (`axis`, 3×3) et une 
 
 ## Triggers
 
-Les entités `trigger_*` avec un modèle `?N` désignent le trigger N de `MapEnts.trigger` : une liste de *hulls* (boîtes relatives à l'origine de l'entité, éventuellement découpées par des *slabs*). `extractTriggers` en donne les boîtes en coordonnées monde ; touche **G** pour les afficher (`mp_dome` : 29 triggers).
+Les entités `trigger_*` avec un modèle `?N` désignent le trigger N de `MapEnts.trigger` : une liste de *hulls* (boîtes relatives à l'origine de l'entité, éventuellement découpées par des *slabs*). `extractTriggers` intersecte chaque boîte avec ses slabs (`|dir·p − midPoint| ≤ halfSize`, en coordonnées locales) avec le même calcul de polyèdre convexe que les brushes de collision (`Convex.ts`), et renvoie le contour exact en coordonnées monde ; touche **G** pour les afficher (`mp_dome` : 29 triggers, dont des zones octogonales et prismatiques).
 
 ## Joueur et collision
 
