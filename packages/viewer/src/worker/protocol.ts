@@ -29,6 +29,8 @@ export interface MapStats {
   msDecompress: number
   msParse: number
   msTotal: number
+  /** time spent on textures (0 until they arrive) */
+  msTextures?: number
   /** loaded from the IndexedDB cache */
   fromCache: boolean
 }
@@ -45,7 +47,9 @@ export type MapResponse =
   | { type: 'progress'; stage: string }
   | { type: 'textures'; textures: TextureData[]; materialImages: Record<string, string | null>; materialNormals: Record<string, string | null>; missing: number
       /** equirectangular sky (scene axes), from the map's sky cube map */
-      sky: { width: number; height: number; rgba: Uint8Array } | null }
+      sky: { width: number; height: number; rgba: Uint8Array } | null
+      /** time spent reading and decoding the images */
+      ms: number }
   | { type: 'error'; message: string }
   | {
       type: 'done'

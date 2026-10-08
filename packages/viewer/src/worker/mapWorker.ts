@@ -64,6 +64,7 @@ function buildGeometry(zone: LoadedZone, fileName: string, zoneBytes: number, ti
 }
 
 async function buildTextures(zone: LoadedZone, propMaterials: Set<string>, iwd: IwdSource[]): Promise<TexturesMessage> {
+  const start = performance.now()
   const materialImages = extractMaterialImages(zone)
   const allNormals = extractMaterialNormals(zone)
   // normal maps only matter for dynamically lit surfaces (the props); the world is lit by its lightmaps
@@ -104,7 +105,7 @@ async function buildTextures(zone: LoadedZone, propMaterials: Set<string>, iwd: 
       if (faces) sky = { width: 2048, height: 1024, rgba: cubeToEquirect(faces, 2048, 1024) }
     } catch { /* keep the plain background */ }
   }
-  return { type: 'textures', textures, materialImages, materialNormals, missing, sky }
+  return { type: 'textures', textures, materialImages, materialNormals, missing, sky, ms: Math.round(performance.now() - start) }
 }
 
 self.onmessage = async (e: MessageEvent<MapRequest>) => {
