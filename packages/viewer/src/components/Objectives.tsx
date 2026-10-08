@@ -2,22 +2,7 @@ import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { Objective } from '@mwthree/iw5-core'
-
-export function objectiveColor(o: Objective): string {
-  switch (o.kind) {
-    case 'domination': return '#f2f2f2'
-    case 'bombzone': return '#ff7a1a'
-    case 'ctf_flag': return o.label === 'axis' ? '#ff4d4d' : '#3d8bff'
-    case 'headquarters': return '#38d16a'
-    case 'sabotage': return '#c06bff'
-  }
-}
-
-export function objectiveText(o: Objective): string {
-  if (o.kind === 'ctf_flag') return '⚑'
-  if (o.kind === 'sabotage') return 'SAB'
-  return o.label
-}
+import { objectiveColor, objectiveText } from '../markers'
 
 /** Floating label sprite (and the capture radius for domination flags) for each game-mode objective. */
 export function Objectives({ objectives }: { objectives: Objective[] }) {
