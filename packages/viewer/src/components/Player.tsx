@@ -43,6 +43,15 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
     body.current?.setLinvel({ x: 0, y: 0, z: 0 }, true)
   }, [camera, spawn, yaw])
 
+  // dev/testing: aim the camera without the mouse (radians, yaw around Y, pitch up); `pos` (scene meters) moves it in fly mode
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    (window as unknown as { __look?: unknown }).__look = (y: number, pitch = 0, pos?: [number, number, number]) => {
+      camera.rotation.set(pitch, y, 0, 'YXZ')
+      if (pos && fly.current) camera.position.set(...pos)
+    }
+  }, [camera])
+
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       keys[e.code] = true
