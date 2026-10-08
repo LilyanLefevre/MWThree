@@ -158,9 +158,9 @@ se lisent à l'octet près ; `mp_dome` est celle utilisée pour les tests d'int�
 | 1 — Décompression FastFile | ✅ |
 | 2 — Zone loader et résolution de pointeurs | ✅ |
 | 3 — Collision et déplacement FPS (Rapier3D) | ✅ |
-| 4 — Géométrie visuelle (GfxWorld ✅, modèles statiques ⏳) | 🔄 |
-| 5 — Textures et IWD | ⏳ |
-| 6 — Entités et UX explorateur | 🔄 |
+| 4 — Géométrie visuelle (monde, props, entités, LOD, ciel) | ✅ |
+| 5 — Textures, normal maps, lightmaps | ✅ (éclairage approché) |
+| 6 — Entités et UX explorateur (spawns, objectifs, mini-carte) | ✅ |
 
 Détails : [`docs/`](docs/README.md).
 

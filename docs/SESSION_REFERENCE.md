@@ -64,6 +64,10 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 3. **Premier chargement** : décodage paresseux des structs ; textures (≈ 11 s sur `mp_dome` en dev, déjà envoyées compressées au GPU) — un pool de workers a été essayé sans gain mesurable. Le cache IndexedDB couvre les rechargements.
 4. **Triggers** : volumes exacts des triggers de `MapEnts.trigger` (aujourd'hui seuls les objectifs sont placés, par leur origine).
 
+## Captures
+
+`docs/images/screens/` : captures du viewer sur `mp_dome` (Playwright CLI, session `-s=mw3`, `?dev=dome&free=1`, fenêtre 1280×720, converties en JPEG avec `sips`). Le GIF de visite des spawns est assemblé à partir de captures successives (touche `T`) avec `gifenc` (ffmpeg n'est pas utilisable sur la machine de dev). À refaire quand le rendu change nettement.
+
 ## Décisions
 
 - Physique Rapier3D ; fichiers locaux uniquement (File System Access API), aucun asset redistribué.
