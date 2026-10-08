@@ -13,6 +13,7 @@ import type { IwdSource, MapResponse, SpawnPoint } from './worker/protocol'
 import { SpawnMarkers } from './components/SpawnMarkers'
 import { Minimap } from './components/Minimap'
 import { Objectives } from './components/Objectives'
+import { RenderStats } from './components/RenderStats'
 import { mapDisplayName } from './mapNames'
 
 /** `values()` is missing from the DOM typings of the File System Access API. */
@@ -187,6 +188,7 @@ function App() {
         {world?.sky && <Sky sky={world.sky} />}
         <fog attach="fog" args={['#9fb4c7', 300, 2500]} />
         <hemisphereLight args={['#cfdcee', '#7a6a55', 0.9]} />
+        {import.meta.env.DEV && <RenderStats />}
         <directionalLight
           position={world?.sun ? world.sun.direction.map(v => v * 500) as [number, number, number] : [300, 500, 200]}
           color={world?.sun ? new THREE.Color(...world.sun.color.map(c => Math.min(1, c / Math.max(...world.sun!.color, 1)))) : '#ffffff'}

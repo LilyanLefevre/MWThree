@@ -33,6 +33,7 @@ npm run dev                          # http://localhost:5173
 ```bash
 npx tsx scripts/loadZone.mts inputs/zone/dome/mp_dome.ff   # bytesRead == taille zone, blocs simulés == en-tête
 npm run test -w packages/iw5-core                            # inclut l'intégration mp_dome (ignorée sans inputs/)
+npx tsx scripts/checkMaps.mts                                # passe tous les extracteurs sur les 16 maps de inputs/zone
 node scripts/genSchema.mjs                                   # régénère src/generated/iw5Schema.json
 ```
 
@@ -59,7 +60,7 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 ## Prochaines étapes
 
 1. **Éclairage** : formule exacte des lightmaps, vraie light grid du moteur pour les props (aujourd'hui : lightmap du sol sous chaque prop), specular (demande de reproduire les shaders d'origine).
-2. **Performance du rendu** : LOD des props selon la distance (seul le LOD 0 est affiché, ≈ 800 000 triangles sur `mp_dome`) — à faire si le framerate devient un problème.
+2. **Performance du rendu** : LOD 0/1 des props en place (−37 % de triangles sur `mp_dome`) ; pistes suivantes : LOD 2+, culling par cellule (`GfxWorld.cells`/portails) si le framerate devient un problème.
 3. **Premier chargement** : décodage paresseux des structs ; textures (≈ 11 s sur `mp_dome` en dev, déjà envoyées compressées au GPU) — un pool de workers a été essayé sans gain mesurable. Le cache IndexedDB couvre les rechargements.
 4. **Triggers** : volumes exacts des triggers de `MapEnts.trigger` (aujourd'hui seuls les objectifs sont placés, par leur origine).
 

@@ -38,7 +38,7 @@ flowchart LR
     M --> IM
 ```
 
-Chaque placement donne une origine, une base orthonormée (`axis`, 3×3) et une échelle ; ils deviennent la matrice d'instance de l'`InstancedMesh` du modèle (≈ 800 000 triangles dessinés pour 108 000 triangles uniques sur `mp_dome`). Seul le LOD 0 est utilisé.
+Chaque placement donne une origine, une base orthonormée (`axis`, 3×3) et une échelle ; ils deviennent la matrice d'instance de l'`InstancedMesh` du modèle (≈ 800 000 triangles dessinés pour 108 000 triangles uniques sur `mp_dome`). **Niveaux de détail** : chaque modèle qui en a un garde aussi son LOD 1 ; quatre fois par seconde, les instances plus loin que la distance de bascule du modèle (`lodInfo[0].dist`) passent dans un second `InstancedMesh` en LOD 1. Sur `mp_dome` depuis le premier spawn : 1,18 M → 0,75 M triangles dessinés (`?nolod` désactive les LOD pour comparer ; `window.__render` expose fps/triangles en dev).
 
 **Props issus d'entités** : les entités `script_model` (véhicules, caisses, objets destructibles) sont placées de la même façon, dans leur état intact : le nom du `model` est cherché parmi les `XModel` de la zone, l'orientation vient de `angles` (pitch, yaw, roll). Les modèles absents de la zone sont ignorés (≈ 1 par map sur `mp_seatown`). Ils sont statiques : ni explosion ni physique.
 

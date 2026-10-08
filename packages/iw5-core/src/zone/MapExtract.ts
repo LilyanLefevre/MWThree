@@ -187,7 +187,12 @@ export interface StaticModelBatch {
   groups: MaterialGroup[]
   /** 16 floats (column-major, scene space) per instance */
   matrices: Float32Array
+  /** coarser level of detail (LOD 1) drawn beyond `farDistance` meters, when the model has one */
+  far?: ModelGeometry
+  farDistance?: number
 }
+
+export type ModelGeometry = Omit<StaticModelBatch, 'name' | 'matrices' | 'far' | 'farDistance'>
 
 function halfToFloat(h: number): number {
   const e = (h >> 10) & 0x1f, m = h & 0x3ff, sign = h & 0x8000 ? -1 : 1
@@ -197,7 +202,7 @@ function halfToFloat(h: number): number {
 }
 
 /** LOD0 geometry of one XModel, in meters with the game's axes. */
-export function buildModelGeometry(zone: LoadedZone, model: any, lodIndex = 0): Omit<StaticModelBatch, 'name' | 'matrices'> | null {
+export function buildModelGeometry(zone: LoadedZone, model: any, lodIndex = 0): ModelGeometry | null {
   const lod = model.lodInfo?.[Math.min(lodIndex, Math.max(0, (model.numLods ?? 1) - 1))]
   const surfsAsset = resolveVal(zone, lod?.modelSurfs)
   const surfs: any[] | undefined = surfsAsset?.surfs
@@ -263,7 +268,14 @@ function batchesOf(zone: LoadedZone, byModel: Map<any, { model: any; mats: numbe
   const out: StaticModelBatch[] = []
   for (const { model, mats } of byModel.values()) {
     const g = buildModelGeometry(zone, model)
-    if (g) out.push({ name: model.name ?? '', ...g, matrices: Float32Array.from(mats) })
+    if (!g) continue
+    const batch: StaticModelBatch = { name: model.name ?? '', ...g, matrices: Float32Array.from(mats) }
+    const dist = model.lodInfo?.[0]?.dist
+    if ((model.numLods ?? 1) > 1 && dist > 0) {
+      const far = buildModelGeometry(zone, model, 1)
+      if (far && far.indices.length < g.indices.length) { batch.far = far; batch.farDistance = dist * UNIT_SCALE }
+    }
+    out.push(batch)
   }
   return out
 }

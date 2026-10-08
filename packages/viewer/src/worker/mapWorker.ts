@@ -140,7 +140,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
 
     post({ type: 'progress', stage: 'Construction de la géométrie' })
     const geo = buildGeometry(zone, fileName, zoneBuf.byteLength, { decompress: t1 - start, parse: t2 - t1, start })
-    const propMaterials = new Set(geo.staticModels.flatMap(m => m.groups.map(g => g.material)))
+    const propMaterials = new Set(geo.staticModels.flatMap(m => [...m.groups, ...(m.far?.groups ?? [])].map(g => g.material)))
     await postAndCache(`${key}:geo`, geo)
 
     // textures are streamed after the geometry so the map is explorable immediately
