@@ -60,7 +60,7 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 
 1. **Éclairage** : formule exacte des lightmaps, vraie light grid du moteur pour les props (aujourd'hui : lightmap du sol sous chaque prop), specular (demande de reproduire les shaders d'origine).
 2. **Performance du rendu** : LOD des props selon la distance (seul le LOD 0 est affiché, ≈ 800 000 triangles sur `mp_dome`) — à faire si le framerate devient un problème.
-3. **Premier chargement** : décodage paresseux des structs, textures décodées en parallèle (le cache IndexedDB couvre déjà les rechargements).
+3. **Premier chargement** : décodage paresseux des structs ; textures (≈ 11 s sur `mp_dome` en dev, déjà envoyées compressées au GPU) — un pool de workers a été essayé sans gain mesurable. Le cache IndexedDB couvre les rechargements.
 4. **Triggers** : volumes exacts des triggers de `MapEnts.trigger` (aujourd'hui seuls les objectifs sont placés, par leur origine).
 
 ## Décisions
