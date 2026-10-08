@@ -9,6 +9,7 @@ export const UNIT_SCALE = 0.0254
 export const ENTITY_KEYS: Record<number, string> = {
   1668: 'classname', 1669: 'origin', 1670: 'model', 1671: 'spawnflags', 1672: 'target',
   1673: 'targetname', 1677: 'angles', 11848: 'script_gameobjectname', 1774: 'script_noteworthy',
+  1782: 'radius', 1783: 'height', 11996: 'script_label',
 }
 
 export type Entity = Record<string, string>
@@ -422,4 +423,41 @@ export function extractSkyImage(zone: LoadedZone): string | null {
   const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
   const img = resolveVal(zone, gfx?.skies?.[0]?.skyImage)
   return typeof img?.name === 'string' ? img.name : null
+}
+
+// ---------------------------------------------------------------- game-mode objectives
+
+export type ObjectiveKind = 'domination' | 'bombzone' | 'ctf_flag' | 'headquarters' | 'sabotage'
+
+export interface Objective {
+  kind: ObjectiveKind
+  /** "A", "B", "allies", ... */
+  label: string
+  /** game units, Z-up */
+  origin: [number, number, number]
+  /** trigger radius / height in game units, when known */
+  radius?: number
+  height?: number
+}
+
+/** Objectives of the multiplayer modes (domination flags, bomb sites, CTF flags, HQ), from the entities. */
+export function extractObjectives(entities: Entity[]): Objective[] {
+  const out: Objective[] = []
+  const label = (e: Entity) => (e.script_label ?? '').replace(/^_/, '').toUpperCase()
+  const seen = new Set<string>()
+  const push = (o: Objective) => {
+    const k = `${o.kind}:${o.label}:${o.origin.map(v => Math.round(v / 64)).join(',')}`
+    if (!seen.has(k)) { seen.add(k); out.push(o) }
+  }
+  for (const e of entities) {
+    const origin = parseVec3(e.origin)
+    if (!origin) continue
+    const num = (v?: string) => (v !== undefined && Number.isFinite(Number(v)) ? Number(v) : undefined)
+    if (e.targetname === 'flag_primary') push({ kind: 'domination', label: label(e) || '?', origin, radius: num(e.radius), height: num(e.height) })
+    else if (e.targetname === 'bombzone' && e.classname === 'trigger_use_touch') push({ kind: 'bombzone', label: label(e) || '?', origin })
+    else if (/^ctf_flag_(allies|axis)$/.test(e.targetname ?? '')) push({ kind: 'ctf_flag', label: e.targetname!.slice(9), origin })
+    else if (e.targetname === 'hq_hardpoint') push({ kind: 'headquarters', label: 'HQ', origin })
+    else if (/^sab_bomb_(allies|axis)$/.test(e.targetname ?? '')) push({ kind: 'sabotage', label: e.targetname!.slice(9), origin })
+  }
+  return out
 }

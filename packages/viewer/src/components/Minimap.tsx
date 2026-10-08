@@ -3,6 +3,7 @@ import { UNIT_SCALE } from '@mwthree/iw5-core'
 import type { MapWorld } from '../types'
 import { playerState } from '../playerState'
 import { spawnColor } from './SpawnMarkers'
+import { objectiveColor, objectiveText } from './Objectives'
 
 const SIZE = 220
 
@@ -56,6 +57,13 @@ export function Minimap({ world }: { world: MapWorld }) {
     for (const s of world.spawns) {
       g.fillStyle = spawnColor(s.classname)
       g.fillRect((s.origin[0] * UNIT_SCALE - bounds.x0) * k - 1, (-s.origin[1] * UNIT_SCALE - bounds.z0) * k - 1, 2, 2)
+    }
+    g.font = 'bold 11px sans-serif'
+    g.textAlign = 'center'; g.textBaseline = 'middle'
+    for (const o of world.objectives) {
+      const x = (o.origin[0] * UNIT_SCALE - bounds.x0) * k, y = (-o.origin[1] * UNIT_SCALE - bounds.z0) * k
+      g.fillStyle = 'rgba(0,0,0,0.7)'; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill()
+      g.fillStyle = objectiveColor(o); g.fillText(objectiveText(o).slice(0, 2), x, y + 1)
     }
     return c
   }, [world, bounds])
