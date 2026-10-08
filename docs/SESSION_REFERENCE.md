@@ -21,6 +21,7 @@ npm run dev                          # http://localhost:5173
 
 - Bouton « Select MW3 Game Folder » → choisir le dossier d'installation (ou un dossier contenant `zone/<map>/mp_<map>.ff`), puis cliquer une map.
 - Raccourci dev (Vite uniquement) : `http://localhost:5173/?dev=dome` charge `inputs/zone/dome/mp_dome.ff` ; `&free=1` accepte le clavier sans pointer lock (tests automatisés).
+- **H** affiche l'aide des commandes ; le panneau d'info montre l'état des calques (●/○).
 - Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, Ctrl = accroupi, **V = vol libre**, **C** = afficher la collision, **T / Maj+T** = spawn suivant/précédent (spawns deathmatch), **O** = repères de spawns (bleu alliés, rouge axe, vert deathmatch, jaune autres modes), **G** = volumes des triggers (orange : utilisation/bombe, jaune : zones, rouge : dégâts), **B** = objectifs (drapeaux de domination A/B/C avec leur rayon de capture, sites de bombe, drapeaux CTF, QG, sabotage ; affichés par défaut, aussi sur la mini-carte)
 - Mini-carte en bas à gauche : zone jouable (délimitée par les spawns) vue de dessus, ombrée par la hauteur, avec les spawns et le joueur
 - Les maps sont listées sous leur nom commercial (Dome, Fallen, Bakaara…) (Espace/Ctrl = monter/descendre).
