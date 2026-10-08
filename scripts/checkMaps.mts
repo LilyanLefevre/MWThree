@@ -20,7 +20,7 @@ for (const dir of readdirSync(root).sort()) {
     const mesh = extractWorldMesh(z)!, ents = extractMapEnts(z), props = extractStaticModels(z), col = extractCollisionMesh(z)!, mats = extractMaterialImages(z)
     const spawns = ents.filter(e => /spawn/.test(e.classname ?? '')).length
     const entityModels = extractEntityModels(z, ents)
-    const sun = extractSun(z), lightmaps = extractLightmaps(z, sun)
+    const sun = extractSun(z), lightmaps = extractLightmaps(z)
     computePropLighting(z.assets.find(a => a.typeName === 'GfxWorld')?.value?.lightGrid, [...props, ...entityModels.batches])
     extractMaterialNormals(z)
     const extra = `entityProps ${entityModels.batches.reduce((a, p) => a + p.matrices.length / 16, 0)} (missing ${entityModels.missing.length}) lightmaps ${lightmaps.length} sun ${sun ? 'yes' : 'no'} sky ${extractSkyImage(z) ?? '-'} objectives ${extractObjectives(ents).length}`

@@ -9,7 +9,7 @@
 | 2 — Zone loader (assets, pointeurs, blocs) | ✓ — les 16 maps `mp_*` de `inputs/zone/` se chargent à l'octet près |
 | 3 — Collision + déplacement FPS | ✓ — brushes `clipMap_t` solides/playerclip → enveloppes convexes → un trimesh Rapier (+ triangles de terrain) ; marche, saut, vol libre, **C** affiche la collision. Reste : collision des modèles statiques |
 | 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques et props d'entités (`script_model`, état intact) instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Manquent : LOD, collision des props |
-| 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (approximation). Props éclairés par la light grid. Manquent : spec maps, shaders d'origine |
+| 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (formule du moteur). Props éclairés par la light grid. Manquent : spec maps, shaders d'origine |
 | 6 — Entités / UX | ✓ — noms de maps, téléportation entre spawns, repères de spawns, objectifs des modes de jeu, mini-carte |
 
 ## Lancer
@@ -67,7 +67,7 @@ scripts/                           genSchema.mjs, loadZone.mts (outils de vérif
 
 ## Prochaines étapes
 
-1. **Éclairage** : props éclairés par la light grid (fait). Reste : formule exacte des lightmaps du monde (gains à l'œil), gains du shader des props (`SUN_GAIN`, `PROP_GAIN` dans `StaticModels.tsx`) à caler sur des captures du jeu, traces `needsTrace` ignorées, specular (shaders d'origine).
+1. **Éclairage** : lightmaps du monde et props suivent maintenant les formules des shaders du moteur (voir `RE_NOTES.md`). Reste : brouillard, specular/normal maps du monde (shaders d'origine), couleur de sommet × albédo, traces `needsTrace` de la light grid, ombres dynamiques des props.
 2. **Performance du rendu** : LOD 0/1 des props en place (−37 % de triangles sur `mp_dome`) ; pistes suivantes : LOD 2+, culling par cellule (`GfxWorld.cells`/portails) si le framerate devient un problème.
 3. **Premier chargement** (≈ 11 s au total sur `mp_dome` en dev, dont ≈ 6 s de textures) : décodage paresseux des structs, ciel en cube map GPU au lieu de la conversion équirectangulaire (≈ 1,5 s). Le cache IndexedDB couvre les rechargements.
 

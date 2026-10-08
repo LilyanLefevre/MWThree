@@ -188,7 +188,7 @@ function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#0b0d10' }}>
-      <Canvas camera={{ position: [0, 3, 5], fov: 75, near: 0.05, far: 6000 }} style={{ width: '100%', height: '100%' }}>
+      <Canvas flat camera={{ position: [0, 3, 5], fov: 75, near: 0.05, far: 6000 }} style={{ width: '100%', height: '100%' }}>
         <color attach="background" args={['#9fb4c7']} />
         {world?.sky && <Sky sky={world.sky} />}
         <fog attach="fog" args={['#9fb4c7', 300, 2500]} />

@@ -31,9 +31,6 @@ function makeMesh(geometry: THREE.BufferGeometry, groups: ModelGeometry['groups'
 const lightBuffer = (m: THREE.InstancedMesh) => (m.geometry.getAttribute('aLight0') as THREE.InterleavedBufferAttribute).data
 const lightOf = (m: THREE.InstancedMesh) => lightBuffer(m).array as Float32Array
 
-/** sun term gain (sun color as authored, ~1.2) and overall gain, calibrated against the lightmapped world */
-const SUN_GAIN = 0.55
-const PROP_GAIN = 1.0
 
 /**
  * Light props like the engine's model lighting: ambient cube from the light grid sample of each instance
@@ -41,7 +38,7 @@ const PROP_GAIN = 1.0
  */
 function applyGridLighting(mat: THREE.Material, sun: MapWorld['sun']) {
   const dir = new THREE.Vector3(...(sun?.direction ?? [0.3, 0.8, 0.5])).normalize()
-  const color = new THREE.Vector3(...(sun?.color ?? [1, 1, 1])).multiplyScalar(SUN_GAIN)
+  const color = new THREE.Vector3(...(sun?.color ?? [1, 1, 1]))
   mat.onBeforeCompile = shader => {
     shader.uniforms.uSunDir = { value: dir }
     shader.uniforms.uSunColor = { value: color }
@@ -57,7 +54,8 @@ function applyGridLighting(mat: THREE.Material, sun: MapWorld['sun']) {
         vec3 amb = n2.x * (wn.x > 0.0 ? vLight0.rgb : vLight1.rgb)
                  + n2.y * (wn.y > 0.0 ? vLight2.rgb : vLight3.rgb)
                  + n2.z * (wn.z > 0.0 ? vLight4.rgb : vLight5.rgb);
-        outgoingLight = diffuseColor.rgb * (amb + uSunColor * max(dot(wn, uSunDir), 0.0) * vLight0.w) * ${PROP_GAIN.toFixed(2)};
+        // engine (lp_*_sun shaders): (2·probe)² + sun × sat(N·L) × visible share
+        outgoingLight = diffuseColor.rgb * (4.0 * amb * amb + uSunColor * max(dot(wn, uSunDir), 0.0) * vLight0.w);
         #include <opaque_fragment>`)
   }
   mat.customProgramCacheKey = () => 'grid-lit'

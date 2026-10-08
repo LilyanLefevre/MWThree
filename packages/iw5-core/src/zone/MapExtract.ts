@@ -387,43 +387,40 @@ export function extractSun(zone: LoadedZone): Sun | null {
   return { color: [l.color[0], l.color[1], l.color[2]], direction: [x / n, z / n, -y / n] }
 }
 
-const SKY_TINT = [0.85, 0.97, 1.18] // shadows are lit by the (cool) sky
-const SUN_TINT = [1.08, 1.0, 0.9] // sunlit areas are warm
-const SATURATION = 1.3
-
 /**
- * Combine each lightmap pair into one RGBA image.
- * primary (L8) holds the sun-shadow mask, secondary (A8R8G8B8, half width) the sky/bounce light.
- * The exact engine formula is not reproduced: this is a calibrated approximation, tinted
- * cool in the shadows and with the map's sun color in the light so the result is not greyscale.
+ * Each lightmap pair as one RGBA image at the primary's resolution, following the engine's lightmap shaders
+ * (IW4 `lm_sun_*`, same layout in IW5):
+ * - secondary (A8R8G8B8, half the primary's size) holds two stacked halves H (top) and B (bottom) with the same layout;
+ *   their alphas encode a 2D direction d = (H.a·4.08 − 2.08, B.a·4.0645 − 2.0645), k = 1/√(1 + |d|²);
+ *   ambient = (B.rgb·k + H.rgb)²
+ * - primary (L8) is the sun visibility; the shader adds primary × sat(N·L) × sun color.
+ * Output: rgb = (B.rgb·k + H.rgb) / 2 (the viewer squares 2·rgb), a = primary.
  */
-export function extractLightmaps(zone: LoadedZone, sun: Sun | null = extractSun(zone)): Lightmap[] {
+export function extractLightmaps(zone: LoadedZone): Lightmap[] {
   const gfx = zone.assets.find(a => a.typeName === 'GfxWorld')?.value
   const out: Lightmap[] = []
   const bytesOf = (img: any): Uint8Array | null => {
     const d = img?.texture?.loadDef?.data
     return d ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : null
   }
-  const m = sun ? Math.max(...sun.color, 1e-3) : 1
-  const sc = sun ? sun.color.map(c => c / m) : [1, 1, 1]
   for (const lm of gfx?.draw?.lightmaps ?? []) {
     const prim = resolveVal(zone, lm.primary), sec = resolveVal(zone, lm.secondary)
     const pd = bytesOf(prim), sd = bytesOf(sec)
-    if (!pd || !sd) { out.push({ width: 1, height: 1, rgba: new Uint8Array([255, 255, 255, 255]) }); continue }
-    const w = prim.width, h = prim.height, sw = sec.width, sh = sec.height
+    if (!pd || !sd) { out.push({ width: 1, height: 1, rgba: new Uint8Array([128, 128, 128, 255]) }); continue }
+    const w = prim.width, h = prim.height, sw = sec.width, half = sec.height / 2
     const rgba = new Uint8Array(w * h * 4)
     for (let y = 0; y < h; y++) {
+      const sy = Math.min(half - 1, (y * half / h) | 0)
       for (let x = 0; x < w; x++) {
-        const sun01 = pd[y * w + x] / 255
-        const so = ((Math.min(sh - 1, (y * sh / h) | 0)) * sw + Math.min(sw - 1, (x * sw / w) | 0)) * 4
+        const sx = Math.min(sw - 1, (x * sw / w) | 0)
+        const t = (sy * sw + sx) * 4, b = ((sy + half) * sw + sx) * 4 // BGRA
+        const dx = sd[t + 3] / 255 * 4.08 - 2.08, dy = sd[b + 3] / 255 * 4.064516 - 2.064516
+        const k = Math.min(1, 1 / Math.sqrt(1 + dx * dx + dy * dy))
         const o = (y * w + x) * 4
-        const amb = [sd[so + 2], sd[so + 1], sd[so]]
-        let r = 0, g = 0, b = 0
-        const c = [0, 0, 0]
-        for (let k = 0; k < 3; k++) c[k] = 30 + amb[k] * 3.4 * SKY_TINT[k] + sun01 * 140 * sc[k] * SUN_TINT[k]
-        const lum = (c[0] + c[1] + c[2]) / 3
-        r = lum + (c[0] - lum) * SATURATION; g = lum + (c[1] - lum) * SATURATION; b = lum + (c[2] - lum) * SATURATION
-        rgba[o] = Math.max(0, Math.min(255, r)); rgba[o + 1] = Math.max(0, Math.min(255, g)); rgba[o + 2] = Math.max(0, Math.min(255, b)); rgba[o + 3] = 255
+        rgba[o] = (sd[b + 2] * k + sd[t + 2]) / 2
+        rgba[o + 1] = (sd[b + 1] * k + sd[t + 1]) / 2
+        rgba[o + 2] = (sd[b] * k + sd[t]) / 2
+        rgba[o + 3] = pd[y * w + x]
       }
     }
     out.push({ width: w, height: h, rgba })
