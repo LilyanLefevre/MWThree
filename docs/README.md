@@ -1,7 +1,9 @@
 # Documentation MWThree
 
 MWThree lit les fichiers d'une installation MW3 (2011) **locale** et affiche/explore les maps multijoueur dans le navigateur.
-Aucun asset du jeu n'est distribué : les schémas ci-dessous décrivent les formats, pas le contenu.
+Aucun asset du jeu n'est distribué. Les captures de `docs/images/screens/` montrent le rendu du viewer sur `mp_dome` ; les schémas décrivent les formats.
+
+![Visite des spawns de mp_dome](images/screens/dome-tour.gif)
 
 | Page | Contenu |
 |---|---|

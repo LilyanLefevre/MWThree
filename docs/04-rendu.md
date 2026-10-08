@@ -1,5 +1,7 @@
 # 04 — Le rendu et le déplacement
 
+![mp_dome dans le viewer](images/screens/dome-hero.jpg)
+
 ## Du `GfxWorld` à l'écran
 
 ```mermaid
@@ -52,6 +54,8 @@ Chaque placement donne une origine, une base orthonormée (`axis`, 3×3) et une 
 
 ## Objectifs des modes de jeu
 
+![Objectifs et mini-carte](images/screens/dome-objectives.jpg)
+
 `extractObjectives` repère dans les entités les drapeaux de domination (`targetname = flag_primary`, lettre dans `script_label`, rayon/hauteur de capture), les sites de bombe (`bombzone`), les drapeaux CTF (`ctf_flag_allies/axis`), les points de QG (`hq_hardpoint`) et le sabotage. Le viewer les affiche en étiquettes toujours visibles et sur la mini-carte.
 
 ## Joueur et collision
@@ -69,6 +73,8 @@ flowchart TD
 
 - Capsule : rayon 0,35 m, hauteur 1,6 m ; marche 4,8 m/s (sprint ×1,5), saut 6,5 m/s.
 - **V** : vol libre (collisions désactivées) pour inspecter la map.
+![Collision affichée avec C](images/screens/dome-collision.jpg)
+
 - La collision vient de `clipMap_t` (touche **C** pour l'afficher en fil de fer) :
   - un **brush** est un volume convexe défini par 6 plans axiaux implicites (la boîte `brushBounds`) plus `numsides` plans explicites ; seuls les brushes *solid* ou *playerclip* sont retenus ;
   - chaque brush est converti en polyèdre (intersection des triples de plans, filtrage des points intérieurs, tri des sommets de chaque face) puis triangulé ;
