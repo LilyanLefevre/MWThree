@@ -1,5 +1,5 @@
 import {
-  FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, extractWorldMesh, extractMapEnts, extractCollisionMesh,
+  FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, iwiCompressedMips, extractWorldMesh, extractMapEnts, extractCollisionMesh,
   extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractLightmaps, extractSun, extractSkyImage, extractObjectives, computePropLighting, parseVec3,
   parseIwiCube, cubeToEquirect,
 } from '@mwthree/iw5-core'
@@ -63,7 +63,7 @@ function buildGeometry(zone: LoadedZone, fileName: string, zoneBytes: number, ti
   }
 }
 
-async function buildTextures(zone: LoadedZone, propMaterials: Set<string>, iwd: IwdSource[]): Promise<TexturesMessage> {
+async function buildTextures(zone: LoadedZone, propMaterials: Set<string>, iwd: IwdSource[], s3tc: boolean): Promise<TexturesMessage> {
   const start = performance.now()
   const materialImages = extractMaterialImages(zone)
   const allNormals = extractMaterialNormals(zone)
@@ -71,31 +71,38 @@ async function buildTextures(zone: LoadedZone, propMaterials: Set<string>, iwd: 
   const materialNormals: Record<string, string | null> = {}
   for (const n of propMaterials) materialNormals[n] = allNormals[n] ?? null
   const lib = new ImageLibrary()
-  for (const src of iwd) await lib.addArchive(await openSource(src))
+  await lib.addArchives(await Promise.all(iwd.map(openSource)))
   const wanted = [...new Set(Object.values(materialImages).filter((n): n is string => !!n))]
   const wantedNormals = [...new Set(Object.values(materialNormals).filter((n): n is string => !!n))]
   const textures: TextureData[] = []
   let missing = 0
-  for (let i = 0; i < wanted.length; i++) {
-    const name = wanted[i]
-    if (i % 25 === 0) post({ type: 'progress', stage: `Textures ${i}/${wanted.length}` })
+  let done = 0
+
+  const decode = async (name: string, normal: boolean) => {
     try {
       const data = await lib.readIwi(name)
-      if (!data) { missing++; continue }
-      const img = parseIwi(data, 512)
+      if (!data) { if (!normal) missing++; return }
+      const packed = !normal && s3tc ? iwiCompressedMips(data, 512) : null
+      if (packed) {
+        textures.push({ name, width: packed.width, height: packed.height, hasAlpha: packed.hasAlpha, compressed: { kind: packed.kind, mips: packed.mips } })
+        if (++done % 25 === 0) post({ type: 'progress', stage: `Textures ${done}/${wanted.length + wantedNormals.length}` })
+        return
+      }
+      const img = parseIwi(data, normal ? 256 : 512, normal)
       let hasAlpha = false
-      for (let k = 3; k < img.rgba.length; k += 4) if (img.rgba[k] < 250) { hasAlpha = true; break }
-      textures.push({ name, width: img.width, height: img.height, rgba: img.rgba, hasAlpha })
-    } catch { missing++ }
+      if (!normal) for (let k = 3; k < img.rgba.length; k += 4) if (img.rgba[k] < 250) { hasAlpha = true; break }
+      textures.push({ name, width: img.width, height: img.height, rgba: img.rgba, hasAlpha, ...(normal ? { normal: true } : {}) })
+    } catch {
+      if (!normal) missing++ // a broken normal map just keeps the flat normal
+    }
+    if (++done % 25 === 0) post({ type: 'progress', stage: `Textures ${done}/${wanted.length + wantedNormals.length}` })
   }
-  for (const name of wantedNormals) {
-    try {
-      const data = await lib.readIwi(name)
-      if (!data) continue
-      const img = parseIwi(data, 256, true)
-      textures.push({ name, width: img.width, height: img.height, rgba: img.rgba, hasAlpha: false, normal: true })
-    } catch { /* keep the flat normal */ }
-  }
+  // reads are I/O bound: keep several in flight (decoding stays on this thread)
+  const queue = [...wanted.map(n => [n, false] as const), ...wantedNormals.map(n => [n, true] as const)]
+  await Promise.all(Array.from({ length: 8 }, async () => {
+    for (let job = queue.shift(); job; job = queue.shift()) await decode(job[0], job[1])
+  }))
+
   let sky: TexturesMessage['sky'] = null
   const skyName = extractSkyImage(zone)
   if (skyName) {
@@ -109,10 +116,10 @@ async function buildTextures(zone: LoadedZone, propMaterials: Set<string>, iwd: 
 }
 
 self.onmessage = async (e: MessageEvent<MapRequest>) => {
-  const { buffer, fileName, iwd } = e.data
+  const { buffer, fileName, iwd, s3tc } = e.data
   try {
     const start = performance.now()
-    const key = cacheKey(fileName, buffer)
+    const key = `${cacheKey(fileName, buffer)}${s3tc ? ':s3tc' : ''}`
 
     post({ type: 'progress', stage: 'Recherche dans le cache' })
     const cachedGeo = await cacheGet<DoneMessage>(`${key}:geo`)
@@ -137,7 +144,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
     await postAndCache(`${key}:geo`, geo)
 
     // textures are streamed after the geometry so the map is explorable immediately
-    if (iwd.length) await postAndCache(`${key}:tex`, await buildTextures(zone, propMaterials, iwd))
+    if (iwd.length) await postAndCache(`${key}:tex`, await buildTextures(zone, propMaterials, iwd, s3tc))
   } catch (err) {
     post({ type: 'error', message: err instanceof Error ? err.message : String(err) })
   }

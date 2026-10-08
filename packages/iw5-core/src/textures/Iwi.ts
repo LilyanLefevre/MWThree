@@ -133,3 +133,55 @@ export function cubeToEquirect(faces: IwiImage[], width = 2048, height = 1024): 
   }
   return out
 }
+
+export interface IwiMips {
+  kind: DxtKind
+  width: number
+  height: number
+  /** compressed levels from the chosen top level down to 1x1 (S3TC blocks, ready for the GPU) */
+  mips: { width: number; height: number; data: Uint8Array }[]
+  /** some texel is transparent (DXT1 punch-through or DXT3/5 alpha below 250) */
+  hasAlpha: boolean
+}
+
+/** S3TC images without decoding: the mip chain from the largest level <= maxSize. Null for other formats. */
+export function iwiCompressedMips(data: Uint8Array, maxSize = Infinity): IwiMips | null {
+  if (data[0] !== 0x49 || data[1] !== 0x57 || data[2] !== 0x69 || data[3] !== 8) return null
+  const f = FORMATS[data[8]]
+  if (!f || f.kind !== 'dxt') return null
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  const topW = dv.getUint16(10, true), topH = dv.getUint16(12, true)
+  const bs = dxtBlockBytes(f.dxt)
+  const levels: { width: number; height: number; bytes: number }[] = []
+  for (let w = topW, h = topH; ; w = Math.max(1, w >> 1), h = Math.max(1, h >> 1)) {
+    levels.push({ width: w, height: h, bytes: Math.max(1, (w + 3) >> 2) * Math.max(1, (h + 3) >> 2) * bs })
+    if (w === 1 && h === 1) break
+  }
+  const total = 32 + levels.reduce((a, l) => a + l.bytes, 0)
+  if (total > data.length) return null // not a full mip chain (cube maps, truncated files)
+  let pick = 0
+  while (pick < levels.length - 1 && (levels[pick].width > maxSize || levels[pick].height > maxSize)) pick++
+  // stored smallest first: level i starts after every smaller level
+  const offsets: number[] = new Array(levels.length)
+  let off = 32
+  for (let i = levels.length - 1; i >= 0; i--) { offsets[i] = off; off += levels[i].bytes }
+  const mips = levels.slice(pick).map((l, k) => ({ width: l.width, height: l.height, data: data.slice(offsets[pick + k], offsets[pick + k] + l.bytes) }))
+  return { kind: f.dxt, width: levels[pick].width, height: levels[pick].height, mips, hasAlpha: dxtHasAlpha(mips[0].data, f.dxt) }
+}
+
+function dxtHasAlpha(d: Uint8Array, kind: DxtKind): boolean {
+  if (kind === 'dxt1') {
+    for (let p = 0; p < d.length; p += 8) {
+      const c0 = d[p] | (d[p + 1] << 8), c1 = d[p + 2] | (d[p + 3] << 8)
+      if (c0 > c1) continue
+      for (let k = 4; k < 8; k++) { const b = d[p + k]; if ((b & 3) === 3 || (b >> 2 & 3) === 3 || (b >> 4 & 3) === 3 || (b >> 6) === 3) return true }
+    }
+    return false
+  }
+  if (kind === 'dxt3') {
+    for (let p = 0; p < d.length; p += 16) for (let k = 0; k < 8; k++) if (d[p + k] !== 0xff) return true
+    return false
+  }
+  for (let p = 0; p < d.length; p += 16) if (Math.min(d[p], d[p + 1]) < 250) return true
+  return false
+}

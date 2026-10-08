@@ -83,7 +83,7 @@ flowchart TD
 | décompression | ≈ 14 s |
 | lecture de la zone | ≈ 11 s |
 | extraction du mesh | < 1 s |
-| textures (≈ 300 images) | quelques secondes, après la géométrie |
+| textures (≈ 300 images) | ≈ 11 s en dev (requêtes HTTP Range), après la géométrie |
 | rechargement (cache IndexedDB) | ≈ 2,5 s, géométrie et textures comprises |
 
 Pistes : décodage paresseux des structures, moins de copies de tableaux, cache du résultat (IndexedDB).

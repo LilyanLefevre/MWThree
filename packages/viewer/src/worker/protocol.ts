@@ -3,9 +3,20 @@ import type { StaticModelBatch, MaterialGroup, Lightmap, Sun, Objective } from '
 /** Where to read the .iwd archives from: local files (folder picker) or URLs (dev server, HTTP Range). */
 export type IwdSource = { file: File } | { url: string }
 
-export interface MapRequest { buffer: ArrayBuffer; fileName: string; iwd: IwdSource[] }
+/** `s3tc`: the GPU accepts S3TC (DXT) textures, so images can be uploaded without being decoded. */
+export interface MapRequest { buffer: ArrayBuffer; fileName: string; iwd: IwdSource[]; s3tc: boolean }
 
-export interface TextureData { name: string; width: number; height: number; rgba: Uint8Array; hasAlpha: boolean; normal?: boolean }
+export interface TextureData {
+  name: string
+  width: number
+  height: number
+  hasAlpha: boolean
+  normal?: boolean
+  /** decoded pixels (normal maps, non-S3TC formats or GPUs without S3TC) */
+  rgba?: Uint8Array
+  /** S3TC mip chain, uploaded as is */
+  compressed?: { kind: 'dxt1' | 'dxt3' | 'dxt5'; mips: { width: number; height: number; data: Uint8Array }[] }
+}
 
 export interface SpawnPoint {
   classname: string

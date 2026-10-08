@@ -1,13 +1,40 @@
 import * as THREE from 'three'
 import { materialColor } from '@mwthree/iw5-core'
 import type { MapWorld } from '../types'
+import type { TextureData } from '../worker/protocol'
+
+const S3TC_FORMATS = {
+  dxt1: THREE.RGBA_S3TC_DXT1_Format, dxt3: THREE.RGBA_S3TC_DXT3_Format, dxt5: THREE.RGBA_S3TC_DXT5_Format,
+} as const
+
+/** A color map: compressed (uploaded as is) or decoded RGBA. */
+function colorTexture(data: TextureData): THREE.Texture {
+  let tex: THREE.Texture
+  if (data.compressed) {
+    const mips = data.compressed.mips.map(m => ({ data: m.data, width: m.width, height: m.height }))
+    tex = new THREE.CompressedTexture(mips as never, data.width, data.height, S3TC_FORMATS[data.compressed.kind])
+    tex.minFilter = mips.length > 1 ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter
+    tex.generateMipmaps = false
+  } else {
+    const rgba = data.rgba!
+    tex = new THREE.DataTexture(new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength), data.width, data.height, THREE.RGBAFormat)
+    tex.minFilter = THREE.LinearMipmapLinearFilter
+    tex.generateMipmaps = true
+  }
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.magFilter = THREE.LinearFilter
+  tex.anisotropy = 4
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.needsUpdate = true
+  return tex
+}
 
 /** One THREE material per game material name: textured when its color-map image was found, flat color otherwise. */
 export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materialNormals' | 'textures'>, names: Iterable<string>): { map: Map<string, THREE.Material>; textures: THREE.Texture[] } {
   const byImage = new Map(world.textures.filter(t => !t.normal).map(t => [t.name, t]))
   const normals = new Map(world.textures.filter(t => t.normal).map(t => [t.name, t]))
   const normalCache = new Map<string, THREE.DataTexture>()
-  const texCache = new Map<string, THREE.DataTexture>()
+  const texCache = new Map<string, THREE.Texture>()
   const map = new Map<string, THREE.Material>()
   for (const name of names) {
     const image = world.materialImages[name]
@@ -15,14 +42,7 @@ export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materia
     if (data) {
       let tex = texCache.get(data.name)
       if (!tex) {
-        tex = new THREE.DataTexture(new Uint8Array(data.rgba.buffer, data.rgba.byteOffset, data.rgba.byteLength), data.width, data.height, THREE.RGBAFormat)
-        tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-        tex.magFilter = THREE.LinearFilter
-        tex.minFilter = THREE.LinearMipmapLinearFilter
-        tex.generateMipmaps = true
-        tex.anisotropy = 4
-        tex.colorSpace = THREE.SRGBColorSpace
-        tex.needsUpdate = true
+        tex = colorTexture(data)
         texCache.set(data.name, tex)
       }
       const nImage = world.materialNormals[name]
@@ -31,7 +51,7 @@ export function buildMaterials(world: Pick<MapWorld, 'materialImages' | 'materia
       if (nData) {
         nTex = normalCache.get(nData.name)
         if (!nTex) {
-          nTex = new THREE.DataTexture(new Uint8Array(nData.rgba.buffer, nData.rgba.byteOffset, nData.rgba.byteLength), nData.width, nData.height, THREE.RGBAFormat)
+          nTex = new THREE.DataTexture(new Uint8Array(nData.rgba!.buffer, nData.rgba!.byteOffset, nData.rgba!.byteLength), nData.width, nData.height, THREE.RGBAFormat)
           nTex.wrapS = nTex.wrapT = THREE.RepeatWrapping
           nTex.magFilter = THREE.LinearFilter
           nTex.minFilter = THREE.LinearMipmapLinearFilter

@@ -61,7 +61,16 @@ export class IwdArchive {
 export class ImageLibrary {
   private index = new Map<string, IwdArchive>()
   async addArchive(src: RandomAccess): Promise<void> {
-    const ar = await new IwdArchive(src).open()
+    this.index_(await new IwdArchive(src).open())
+  }
+
+  /** Open several archives concurrently; later archives override earlier ones (iw_00 < iw_01 < …). */
+  async addArchives(srcs: RandomAccess[]): Promise<void> {
+    const archives = await Promise.all(srcs.map(s => new IwdArchive(s).open()))
+    for (const ar of archives) this.index_(ar)
+  }
+
+  private index_(ar: IwdArchive) {
     for (const name of ar.entries.keys()) {
       if (name.startsWith('images/') && name.endsWith('.iwi')) this.index.set(name.slice(7, -4), ar)
     }
