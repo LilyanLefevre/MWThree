@@ -14,6 +14,9 @@ const CROUCH_SPEED = 0.45
 const RUN = 4.8
 const FLY = 14
 const JUMP = 6.5
+const GRAVITY = 20
+/** the game's step height (18 units): low ledges, bars, curbs and rubble are walked over, not blocked by */
+const STEP = 0.46
 
 const keys: Record<string, boolean> = {}
 /** dev/testing: accept keyboard input without pointer lock (?free) */
@@ -29,18 +32,35 @@ export interface PlayerProps {
 
 export function Player({ spawn, yaw, onFly }: PlayerProps) {
   const { camera } = useThree()
-  const { world, rapier } = useRapier()
+  const { world } = useRapier()
   const body = useRef<RapierRigidBody>(null)
   const controls = useRef<{ isLocked: boolean } | null>(null)
   const fly = useRef(false)
   const dir = useRef(new THREE.Vector3())
   const eye = useRef(EYE)
+  /** capsule center, meters: the body is kinematic, moved by the character controller */
+  const pos = useRef(new THREE.Vector3(...spawn))
+  const vy = useRef(0)
+  const grounded = useRef(false)
+  // the type comes from @react-three/rapier's own copy of Rapier (a second copy sits at the root)
+  const controller = useRef<ReturnType<typeof world.createCharacterController> | null>(null)
+  // created and removed in the same effect: React's dev double mount would otherwise leave a removed controller behind
+  useEffect(() => {
+    const c = world.createCharacterController(0.01)
+    c.enableAutostep(STEP, 0.1, false)
+    c.enableSnapToGround(0.3)
+    c.setMaxSlopeClimbAngle((50 * Math.PI) / 180)
+    c.setMinSlopeSlideAngle((55 * Math.PI) / 180)
+    c.setSlideEnabled(true)
+    controller.current = c
+    return () => { world.removeCharacterController(c); controller.current = null }
+  }, [world])
 
   useEffect(() => {
     camera.position.set(spawn[0], spawn[1] + EYE, spawn[2])
     camera.rotation.set(0, yaw, 0, 'YXZ')
+    pos.current.set(...spawn); vy.current = 0
     body.current?.setTranslation({ x: spawn[0], y: spawn[1], z: spawn[2] }, true)
-    body.current?.setLinvel({ x: 0, y: 0, z: 0 }, true)
   }, [camera, spawn, yaw])
 
   // dev/testing: aim the camera without the mouse (radians, yaw around Y, pitch up); `pos` (scene meters) moves it in fly mode
@@ -63,8 +83,8 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
           else {
             const p = camera.position
             b.setEnabled(true)
+            pos.current.set(p.x, p.y - EYE, p.z); vy.current = 0
             b.setTranslation({ x: p.x, y: p.y - EYE, z: p.z }, true)
-            b.setLinvel({ x: 0, y: 0, z: 0 }, true)
           }
         }
         onFly?.(fly.current)
@@ -80,7 +100,7 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
     const b = body.current
     if (!b) return
     if (!fly.current) {
-      const t0 = b.translation()
+      const t0 = pos.current
       // smooth crouch transition
       const target = keys.ControlLeft || keys.ControlRight ? CROUCH_EYE : EYE
       eye.current += (target - eye.current) * Math.min(1, dt * 12)
@@ -88,7 +108,7 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
     }
     playerState.x = camera.position.x; playerState.y = camera.position.y; playerState.z = camera.position.z
     playerState.yaw = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y
-    if (import.meta.env.DEV) (window as unknown as { __player?: unknown }).__player = { body: b.translation(), cam: camera.position.toArray(), fly: fly.current }
+    if (import.meta.env.DEV) (window as unknown as { __player?: unknown }).__player = { body: { x: pos.current.x, y: pos.current.y, z: pos.current.z }, cam: camera.position.toArray(), fly: fly.current, grounded: grounded.current, vy: vy.current }
     if (!controls.current?.isLocked && !FREE_INPUT) return
     const d = Math.min(dt, 0.05)
     const wish = dir.current.set(0, 0, 0)
@@ -109,29 +129,28 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
       return
     }
 
-    const lin = b.linvel()
-    const t = b.translation()
-    // ground check: ray down from the capsule center
-    const ray = new rapier.Ray({ x: t.x, y: t.y, z: t.z }, { x: 0, y: -1, z: 0 })
-    const hit = world.castRay(ray, HALF + RADIUS + 0.12, true, undefined, undefined, undefined, b)
-    const grounded = !!hit
+    const collider = b.collider(0), cc = controller.current
+    if (!collider || !cc) return
     const crouched = keys.ControlLeft || keys.ControlRight
     const speed = RUN * (crouched ? CROUCH_SPEED : keys.ShiftLeft ? 1.5 : 1)
-    let vy = lin.y
-    if (grounded && keys.Space && lin.y <= 0.5) vy = JUMP
-    b.setLinvel({ x: wish.x * speed, y: vy, z: wish.z * speed }, true)
+    if (grounded.current && keys.Space) vy.current = JUMP
+    vy.current -= GRAVITY * d
+    cc.computeColliderMovement(collider, { x: wish.x * speed * d, y: vy.current * d, z: wish.z * speed * d })
+    const mv = cc.computedMovement()
+    grounded.current = cc.computedGrounded()
+    // landing, or the head against a ceiling, cancels the vertical speed
+    if ((grounded.current && vy.current < 0) || (vy.current > 0 && mv.y < vy.current * d - 1e-4)) vy.current = 0
+    pos.current.add(mv as unknown as THREE.Vector3)
+    b.setNextKinematicTranslation({ x: pos.current.x, y: pos.current.y, z: pos.current.z })
   })
 
   return (
     <>
       <RigidBody
         ref={body}
-        type="dynamic"
+        type="kinematicPosition"
         colliders={false}
         position={spawn}
-        enabledRotations={[false, false, false]}
-        linearDamping={0}
-        ccd
       >
         <CapsuleCollider args={[HALF, RADIUS]} friction={0} />
       </RigidBody>
