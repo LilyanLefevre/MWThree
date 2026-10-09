@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, normalize } from 'node:path'
 import type { ServerResponse } from 'node:http'
 import { defineConfig, type Connect, type Plugin } from 'vite'
@@ -8,8 +8,8 @@ import react from '@vitejs/plugin-react'
  * Serve the game files at /__inputs/, in dev and in `vite preview`: the machine that runs the server shares its own
  * maps on the local network. A static build has none of it. The folder is `inputs/` (never committed) or
  * $MWTHREE_INPUTS, e.g. an MW3 installation: maps in zone/<code>/mp_<code>.ff or zone/<language>/mp_<code>.ff,
- * archives in main/*.iwd.
- * /__inputs-list/maps lists the maps ({ code, size, path }), /__inputs-list/main the .iwd archives.
+ * community maps in usermaps/<code>/, archives in main/*.iwd.
+ * /__inputs-list/maps lists the maps ({ code, name, size, path, iwd }), /__inputs-list/main the .iwd archives.
  */
 function localInputs(): Plugin {
   const root = process.env.MWTHREE_INPUTS ?? join(__dirname, '..', '..', 'inputs')
@@ -20,14 +20,25 @@ function localInputs(): Plugin {
       json(res, existsSync(join(root, 'main')) ? readdirSync(join(root, 'main')).filter(n => n.endsWith('.iwd') && !n.startsWith('._')) : [])
     })
     middlewares.use('/__inputs-list/maps', (_req, res) => {
-      const zone = join(root, 'zone')
-      const maps = new Map<string, { code: string; size: number; path: string }>()
-      for (const dir of existsSync(zone) ? readdirSync(zone) : []) {
-        if (dir.startsWith('.') || !statSync(join(zone, dir)).isDirectory()) continue
-        for (const f of readdirSync(join(zone, dir))) {
-          const code = MAP.exec(f)?.[1]?.toLowerCase()
-          if (!code || code.endsWith('_load') || maps.has(code)) continue
-          maps.set(code, { code, size: statSync(join(zone, dir, f)).size, path: `zone/${dir}/${f}` })
+      type Entry = { code: string; name?: string; size: number; path: string; iwd: string[] }
+      const maps = new Map<string, Entry>()
+      const isDir = (p: string) => { try { return statSync(p).isDirectory() } catch { return false } }
+      // retail layout: zone/<map or language>/mp_<map>.ff; community maps: usermaps/<map>/mp_<map>.ff (+ .iwd, .arena)
+      for (const base of ['zone', 'usermaps']) {
+        const top = join(root, base)
+        for (const dir of existsSync(top) ? readdirSync(top) : []) {
+          if (dir.startsWith('.') || !isDir(join(top, dir))) continue
+          const files = readdirSync(join(top, dir))
+          for (const f of files) {
+            const code = MAP.exec(f)?.[1]?.toLowerCase()
+            if (!code || code.endsWith('_load') || maps.has(code)) continue
+            const arena = files.includes(`mp_${code}.arena`) ? readFileSync(join(top, dir, `mp_${code}.arena`), 'latin1') : ''
+            maps.set(code, {
+              code, size: statSync(join(top, dir, f)).size, path: `${base}/${dir}/${f}`,
+              name: /longname\s+"([^"]*)"/i.exec(arena)?.[1],
+              iwd: base === 'usermaps' ? files.filter(n => n.endsWith('.iwd') && !n.startsWith('.')).map(n => `${base}/${dir}/${n}`) : [],
+            })
+          }
         }
       }
       json(res, [...maps.values()].sort((a, b) => a.code.localeCompare(b.code)))

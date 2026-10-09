@@ -1,9 +1,3 @@
-export interface MapInfo {
-  maps: string[]
-  archives: string[]
-  path: string
-}
-
 export interface ZoneAssetSummary {
   type: number
   typeName: string
