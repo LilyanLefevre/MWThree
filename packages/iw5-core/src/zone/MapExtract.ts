@@ -239,7 +239,10 @@ export function buildModelGeometry(zone: LoadedZone, model: any, lodIndex = 0): 
     const tris = surf.triIndices as PlainArray | undefined
     if (!verts || !tris || !surf.vertCount || !surf.triCount) return
     const vdv = new DataView(verts.bytes.buffer, verts.bytes.byteOffset, verts.bytes.byteLength)
-    const matName = materialName(zone, handles[(lod.surfIndex ?? 0) + si])
+    const handle = handles[(lod.surfIndex ?? 0) + si]
+    // shadow-caster surfaces (foliage masks, sort key 34) only feed the shadow maps: drawn, they show as white leaves
+    if (sortKeyOf(zone, handle) === SHADOW_SORT_KEY) return
+    const matName = materialName(zone, handle)
     const [cr, cg, cb] = materialColor(matName)
     const idxStart = idx.length
     const base = pos.length / 3
