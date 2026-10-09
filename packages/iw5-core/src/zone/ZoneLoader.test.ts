@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { beforeAll, describe, it, expect } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { FastFileLoader } from '../FastFileLoader.js'
-import { ZoneLoader } from './ZoneLoader.js'
+import { ZoneLoader, type LoadedZone } from './ZoneLoader.js'
 import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractFog, extractMaterialBlends, extractWorldMesh } from './MapExtract.js'
 import { sampleLightGrid } from './LightGrid.js'
 
@@ -11,9 +11,13 @@ import { sampleLightGrid } from './LightGrid.js'
 const DOME = join(__dirname, '../../../../inputs/zone/dome/mp_dome.ff')
 
 describe.skipIf(!existsSync(DOME))('ZoneLoader (mp_dome.ff)', () => {
-  const raw = readFileSync(DOME)
-  const zoneBuf = new FastFileLoader(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer).load()
-  const zone = new ZoneLoader(zoneBuf).load()
+  // read in beforeAll: a skipped describe still runs its body when tests are collected (CI has no game files)
+  let zoneBuf!: ArrayBuffer, zone!: LoadedZone
+  beforeAll(() => {
+    const raw = readFileSync(DOME)
+    zoneBuf = new FastFileLoader(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer).load()
+    zone = new ZoneLoader(zoneBuf).load()
+  })
 
   it('consumes the whole zone stream', () => {
     expect(zone.bytesRead).toBe(zoneBuf.byteLength)
