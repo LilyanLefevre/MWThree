@@ -14,3 +14,6 @@ inputs/
 .claude/settings.local.json
 extra-maps/
 private-pack/
+maps/dome/
+maps/hardhat/
+maps/main/
