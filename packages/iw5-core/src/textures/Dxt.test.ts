@@ -22,10 +22,10 @@ describe('decodeDxt', () => {
 
 describe('parseIwi', () => {
   it('reads the top mip from the end of the mip chain and honours maxSize', () => {
-    // 2x2 A8 image: mips are 1x1 (value 7) then 2x2 (values 1..4)
+    // 2x2 alpha image: mips are 1x1 (value 7) then 2x2 (values 1..4)
     const header = new Uint8Array(32)
     header.set([0x49, 0x57, 0x69, 8], 0)
-    header[8] = 0x04 // A8
+    header[8] = 0x05 // alpha
     header[10] = 2; header[12] = 2; header[14] = 1
     const body = new Uint8Array([7, 1, 2, 3, 4])
     const file = new Uint8Array([...header, ...body])

@@ -1,5 +1,6 @@
 // IWi v8 image files (MW2/MW3): 32-byte header followed by the mip chain.
 import { decodeDxt, dxtBlockBytes, type DxtKind } from './Dxt.js'
+import { decodeWaveletMips } from './Wavelet.js'
 
 export interface IwiImage {
   width: number
@@ -13,11 +14,13 @@ export interface IwiImage {
   mipCount: number
 }
 
-const FORMATS: Record<number, { kind: 'dxt'; dxt: DxtKind } | { kind: 'raw'; bpp: number }> = {
-  0x01: { kind: 'raw', bpp: 4 }, // ARGB32
-  0x02: { kind: 'raw', bpp: 3 }, // RGB24
-  0x03: { kind: 'raw', bpp: 2 }, // GA16
-  0x04: { kind: 'raw', bpp: 1 }, // A8
+// IwiFormat (OpenAssetTools IwiTypes.h, iwi8); 0x06-0x0a are wavelet-compressed (Wavelet.ts)
+const FORMATS: Record<number, { kind: 'dxt'; dxt: DxtKind } | { kind: 'raw'; bpp: number; alpha?: boolean }> = {
+  0x01: { kind: 'raw', bpp: 4 }, // BGRA
+  0x02: { kind: 'raw', bpp: 3 }, // BGR
+  0x03: { kind: 'raw', bpp: 2 }, // luminance + alpha
+  0x04: { kind: 'raw', bpp: 1 }, // luminance
+  0x05: { kind: 'raw', bpp: 1, alpha: true }, // alpha
   0x0b: { kind: 'dxt', dxt: 'dxt1' },
   0x0c: { kind: 'dxt', dxt: 'dxt3' },
   0x0d: { kind: 'dxt', dxt: 'dxt5' },
@@ -34,6 +37,7 @@ export function parseIwi(data: Uint8Array, maxSize = Infinity, asNormalMap = fal
   const flags = dv.getUint32(4, true)
   const format = data[8]
   const topW = dv.getUint16(10, true), topH = dv.getUint16(12, true)
+  if (format >= 0x06 && format <= 0x0a) return parseWaveletIwi(data, format, flags, topW, topH, maxSize, asNormalMap)
   const f = FORMATS[format]
   if (!f) throw new Error(`unsupported IWi format 0x${format.toString(16)}`)
   const levelBytes = (w: number, h: number) =>
@@ -63,8 +67,26 @@ export function parseIwi(data: Uint8Array, maxSize = Infinity, asNormalMap = fal
       if (f.bpp === 4) { rgba[o] = src[s + 2]; rgba[o + 1] = src[s + 1]; rgba[o + 2] = src[s]; rgba[o + 3] = src[s + 3] }
       else if (f.bpp === 3) { rgba[o] = src[s + 2]; rgba[o + 1] = src[s + 1]; rgba[o + 2] = src[s]; rgba[o + 3] = 255 }
       else if (f.bpp === 2) { rgba[o] = rgba[o + 1] = rgba[o + 2] = src[s]; rgba[o + 3] = src[s + 1] }
-      else { rgba[o] = rgba[o + 1] = rgba[o + 2] = 255; rgba[o + 3] = src[s] }
+      else if (f.alpha) { rgba[o] = rgba[o + 1] = rgba[o + 2] = 255; rgba[o + 3] = src[s] }
+      else { rgba[o] = rgba[o + 1] = rgba[o + 2] = src[s]; rgba[o + 3] = 255 }
     }
+  }
+  if (asNormalMap) toNormalMap(rgba)
+  return { width, height, rgba, format, flags, mipCount: levels.length - pick }
+}
+
+/** Wavelet formats: the whole chain is decoded from 1x1 up, then the largest level <= maxSize is kept. */
+function parseWaveletIwi(data: Uint8Array, format: number, flags: number, topW: number, topH: number, maxSize: number, asNormalMap: boolean): IwiImage {
+  const levels = decodeWaveletMips(data.subarray(32), topW, topH, format)
+  let pick = 0
+  while (pick < levels.length - 1 && (levels[pick].width > maxSize || levels[pick].height > maxSize)) pick++
+  const { width, height, pixels: p, bpp } = levels[pick]
+  const rgba = new Uint8Array(width * height * 4)
+  for (let i = 0, s = 0, o = 0; i < width * height; i++, s += bpp, o += 4) {
+    if (bpp === 4) { rgba[o] = p[s + 2]; rgba[o + 1] = p[s + 1]; rgba[o + 2] = p[s]; rgba[o + 3] = p[s + 3] }
+    else if (bpp === 2) { rgba[o] = rgba[o + 1] = rgba[o + 2] = p[s]; rgba[o + 3] = p[s + 1] }
+    else if (format === 0x0a) { rgba[o] = rgba[o + 1] = rgba[o + 2] = 255; rgba[o + 3] = p[s] }
+    else { rgba[o] = rgba[o + 1] = rgba[o + 2] = p[s]; rgba[o + 3] = 255 }
   }
   if (asNormalMap) toNormalMap(rgba)
   return { width, height, rgba, format, flags, mipCount: levels.length - pick }
