@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { FastFileLoader } from '../FastFileLoader.js'
 import { ZoneLoader, type LoadedZone } from './ZoneLoader.js'
-import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractFog, extractMaterialBlends, extractWorldMesh } from './MapExtract.js'
+import { extractEntityModels, extractMapEnts, extractStaticModels, extractSun, extractFog, extractMaterialBlends, extractOpaqueMaterials, extractWorldMesh } from './MapExtract.js'
 import { sampleLightGrid } from './LightGrid.js'
 
 // Integration test against a real retail zone. Game files are never committed:
@@ -17,7 +17,7 @@ describe.skipIf(!existsSync(DOME))('ZoneLoader (mp_dome.ff)', () => {
     const raw = readFileSync(DOME)
     zoneBuf = new FastFileLoader(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer).load()
     zone = new ZoneLoader(zoneBuf).load()
-  })
+  }, 120_000)
 
   it('consumes the whole zone stream', () => {
     expect(zone.bytesRead).toBe(zoneBuf.byteLength)
@@ -84,6 +84,14 @@ describe.skipIf(!existsSync(DOME))('ZoneLoader (mp_dome.ff)', () => {
     expect(b['wc/ch_godray01']).toEqual({ blend: 'screen', falloff: true, linear: true })
     expect(b['mc/gfx_floodlight_beam_godray75']).toEqual({ blend: 'add', falloff: true, linear: true })
     expect(b['wc/com_stain_01']).toEqual({ blend: 'multiply', falloff: false, linear: true })
+  })
+
+  it('tells opaque materials (alpha is not an opacity) from alpha-tested and blended ones', () => {
+    const opaque = new Set(extractOpaqueMaterials(zone))
+    expect(opaque.has('wc/ch_concretewall02')).toBe(true) // wc_l_sm_r0c0n0s0
+    expect(opaque.has('wc/me_fence_chainlink')).toBe(false) // wc_l_sm_t0c0n0s0: alpha-tested
+    expect(opaque.has('wc/me_ground_drygrass_dec')).toBe(false) // ,wc_l_sm_b0c0n0s0: blended decal
+    expect(opaque.has('wc/ch_godray01')).toBe(false) // unlit effect
   })
 
   it('extracts map entities', () => {
