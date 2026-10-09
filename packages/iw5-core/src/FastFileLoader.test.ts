@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as pako from 'pako'
+import { zstdCompressSync } from 'node:zlib'
 import { FastFileLoader } from './FastFileLoader.js'
 
 const CHUNK_SIZE = 0x2000
@@ -111,5 +112,18 @@ describe('FastFileLoader', () => {
     new Uint8Array(buf).set(enc.encode('IWffu100'))
     const loader = new FastFileLoader(buf)
     expect(() => loader.load()).toThrow(/too small/)
+  })
+})
+
+describe('FastFileLoader (zstd)', () => {
+  it('reads an unsigned FastFile compressed with Zstandard (custom-map linkers)', () => {
+    const payload = new Uint8Array(5000).map((_, i) => (i * 7) & 0xff)
+    const header = new Uint8Array(21)
+    header.set(new TextEncoder().encode('IWffu100'), 0)
+    new DataView(header.buffer).setUint32(8, 2000, true) // the version ZoneTool gives zstd zones
+    const body = zstdCompressSync(payload)
+    const file = new Uint8Array(header.length + body.length)
+    file.set(header); file.set(body, header.length)
+    expect(new Uint8Array(new FastFileLoader(file.buffer).load())).toEqual(payload)
   })
 })
