@@ -85,6 +85,11 @@ scripts/deploy.sh --folder "/chemin/vers/MW3"        # + un dossier partagé
 scripts/deploy.sh --folder DIR --port 8080 --name mwthree
 ```
 
+**GitHub Pages (démo publique gratuite)** : le workflow `.github/workflows/pages.yml` construit le site statique (maps incluses, sans dossier
+partagé) et le publie à chaque push sur `main`. Réglage unique : *Settings → Pages → Source : GitHub Actions*. Ajouter une map à la démo =
+déposer son dossier dans `maps/`, la déclarer dans `maps/CREDITS.md` et pousser (limites de Pages : 1 Go pour le site, moins de 100 Mo par
+fichier ; seules des maps redistribuables, le site est public). Sous un autre préfixe : `VITE_BASE=/chemin/ npm run build`.
+
 Sans Docker : `npm run build`, puis `MWTHREE_INPUTS="/chemin/vers/MW3" npm run preview -w packages/viewer -- --host` (sans la variable, le
 serveur partage `inputs/` s'il existe). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il offre les
 deux maps incluses, et chaque visiteur peut y ajouter son dossier MW3.
