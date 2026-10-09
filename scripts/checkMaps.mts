@@ -25,6 +25,9 @@ for (const dir of readdirSync(root).sort()) {
     extractMaterialNormals(z)
     const extra = `entityProps ${entityModels.batches.reduce((a, p) => a + p.matrices.length / 16, 0)} (missing ${entityModels.missing.length}) lightmaps ${lightmaps.length} sun ${sun ? 'yes' : 'no'} fog ${extractFog(z) ? 'yes' : 'no'} blends ${Object.keys(extractMaterialBlends(z)).length} sky ${extractSkyImage(z) ?? '-'} objectives ${extractObjectives(ents).length}`
     let bad = 0; for (const i of mesh.indices) if (i >= mesh.positions.length / 3) bad++
-    console.log(`${dir.padEnd(12)} tris ${mesh.indices.length / 3 | 0} props ${props.reduce((a, p) => a + p.matrices.length / 16, 0)} brushes ${col.brushCount} ents ${ents.length} spawns ${spawns} materials ${Object.keys(mats).length} ${extra}${bad ? ' BAD INDICES ' + bad : ''}`)
+    // every collision vertex must be used once partitions' firstVertSegment offsets are applied (see Collision.ts)
+    const used = new Uint8Array(col.positions.length / 3); for (const i of col.indices) used[i] = 1
+    const unusedVerts = used.length - used.reduce((n, u) => n + u, 0)
+    console.log(`${dir.padEnd(12)} tris ${mesh.indices.length / 3 | 0} props ${props.reduce((a, p) => a + p.matrices.length / 16, 0)} brushes ${col.brushCount} ents ${ents.length} spawns ${spawns} materials ${Object.keys(mats).length} ${extra}${bad ? ' BAD INDICES ' + bad : ''}${unusedVerts ? ' UNUSED COLLISION VERTS ' + unusedVerts : ''}`)
   } catch (e: any) { console.log(`${dir.padEnd(12)} FAIL ${e.message.split('\n')[0]}`) }
 }

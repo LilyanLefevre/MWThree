@@ -58,13 +58,19 @@ export function extractCollisionMesh(zone: LoadedZone): CollisionMesh | null {
     }
   })
 
-  // terrain / patch collision triangles
+  // terrain / patch / baked model collision triangles. Indices are u16: each partition's triangles address the
+  // vertices from firstVertSegment * 1024 on (verified on mp_seatown: 72 255 vertices, all referenced only with it)
   let tris = 0
   const verts = clip.verts, ti = clip.triIndices as Uint16Array | undefined
   if (verts && ti && clip.triCount) {
     const base = pos.length / 3
     for (let i = 0; i < verts.length; i++) { const v = verts.get(i); addVert(v.x, v.y, v.z) }
-    for (let t = 0; t < clip.triCount; t++) idx.push(base + ti[t * 3], base + ti[t * 3 + 1], base + ti[t * 3 + 2])
+    const triBase = new Int32Array(clip.triCount)
+    for (let i = 0; i < clip.partitionCount; i++) {
+      const p = get(clip.partitions, i)
+      triBase.fill(base + p.firstVertSegment * 1024, p.firstTri, p.firstTri + p.triCount)
+    }
+    for (let t = 0; t < clip.triCount; t++) idx.push(triBase[t] + ti[t * 3], triBase[t] + ti[t * 3 + 1], triBase[t] + ti[t * 3 + 2])
     tris = clip.triCount
   }
   // Static models (clipMap.staticModelList) are not part of it: the engine only tests them with point traces
