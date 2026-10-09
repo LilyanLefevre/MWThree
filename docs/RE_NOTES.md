@@ -121,6 +121,21 @@ lue sur la surface du cube (`n / max|n|`), `w` = part de soleil visible.
   sans virgule (`,me_roof` → `me_roof.iwi`).
 - Restent introuvables, sans effet visible : les images par défaut du moteur (`$white`, `default`) sur des matériaux masqués.
 
+### Triangles de collision (`clipMap_t.verts` / `triIndices`) et sous-modèles
+
+- `triIndices` est en u16 : chaque `CollisionPartition` (`firstTri`, `triCount`) adresse les sommets à partir de
+  `firstVertSegment × 1024` (règle trouvée dans zonetool, convertisseur IW6 → H1 `physworld.cpp`). **Vérifié** : avec ce décalage,
+  les 72 255 sommets de `mp_seatown` sont tous référencés ; sans lui, 6 722 ne le sont jamais et 12 005 triangles (10 %) pointent
+  sur de mauvais sommets (murs invisibles). Seules `mp_seatown` et `mp_bootleg` (5 676 triangles) dépassent 65 536 sommets.
+  `checkMaps` signale tout sommet de collision non référencé.
+- Ces triangles ne sont pas que du terrain : ~50 % sont quasi verticaux (patchs, collision de modèles cuite par le compilateur).
+- `cmodels[1..]` : sous-modèles `*N`. Leurs brushes s'obtiennent en parcourant `leafbrushNodes` depuis `cmodels[i].leaf.leafBrushNode`
+  (`leafBrushCount > 0` : feuille listant des brushes ; `< 0` : descendre aussi dans le nœud suivant ; puis `childOffset[0/1]`,
+  relatifs, comme `CM_TraceThroughLeafBrushNode_r`). Ceux des entités avec `script_gameobjectname` (QG, bombe, sab, palette de
+  largage) sont retirés par les scripts de mode ; les autres (clips de prefab `pfN_autoN`, `taxi_ad_clip`…) restent solides.
+- Contrôle de la reconstruction des brushes : l'enveloppe convexe de chaque brush solide remplit exactement sa `brushBounds`
+  (0 écart sur les 12 249 brushes de `mp_seatown`).
+
 ### Collision des modèles statiques
 
 `clipMap_t.staticModelList` liste les modèles statiques (avec `XModel.contents`, `collLod`, `collSurfs`), mais le moteur ne les
