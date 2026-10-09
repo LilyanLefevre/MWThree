@@ -1,3 +1,4 @@
+import { fallbackTexture } from './fallback'
 import {
   FastFileLoader, ZoneLoader, ImageLibrary, parseIwi, iwiCompressedMips, extractWorldMesh, extractMapEnts, extractCollisionMesh,
   extractStaticModels, extractEntityModels, extractMaterialImages, extractMaterialNormals, extractMaterialBlends, extractOpaqueMaterials, extractLightmaps, extractSun, extractFog, extractSkyImage, extractObjectives, extractTriggers, computePropLighting, parseVec3,
@@ -110,7 +111,13 @@ async function buildTextures(zone: LoadedZone, propMaterials: Set<string>, iwd: 
   const decode = async (name: string, normal: boolean) => {
     try {
       const data = await lib.readIwi(name)
-      if (!data) { if (!normal) missing++; return }
+      if (!data) {
+        if (normal) return
+        missing++
+        const stand = await fallbackTexture(name)
+        if (stand) textures.push({ name, width: stand.width, height: stand.height, rgba: stand.rgba, hasAlpha: false })
+        return
+      }
       const packed = !normal && s3tc ? iwiCompressedMips(data, 512) : null
       if (packed) {
         textures.push({ name, width: packed.width, height: packed.height, hasAlpha: packed.hasAlpha, compressed: { kind: packed.kind, mips: packed.mips } })
