@@ -22,10 +22,13 @@ export function parseEntities(entityString: ArrayLike<number>): Entity[] {
   for (let i = 0; i < entityString.length; i += chunk) {
     txt += String.fromCharCode(...Array.from({ length: Math.min(chunk, entityString.length - i) }, (_, k) => entityString[i + k] & 0xff))
   }
+  // maps linked by community tools keep the plain `"key" "value"` text; the game's own use numeric key ids
+  const plain = /^\s*\{\s*"[a-z_]/i.test(txt)
   const ents: Entity[] = []
   for (const block of txt.split('}')) {
     const e: Entity = {}
-    for (const m of block.matchAll(/(\d+) "([^"]*)"/g)) e[ENTITY_KEYS[Number(m[1])] ?? `key_${m[1]}`] = m[2]
+    if (plain) for (const m of block.matchAll(/"([^"]*)"\s+"([^"]*)"/g)) e[m[1]] = m[2]
+    else for (const m of block.matchAll(/(\d+) "([^"]*)"/g)) e[ENTITY_KEYS[Number(m[1])] ?? `key_${m[1]}`] = m[2]
     if (Object.keys(e).length) ents.push(e)
   }
   return ents

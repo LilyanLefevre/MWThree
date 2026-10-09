@@ -44,8 +44,10 @@ export function extractCollisionMesh(zone: LoadedZone): CollisionMesh | null {
       [0, 1, 0, m.y + h.y], [0, -1, 0, -(m.y - h.y)],
       [0, 0, 1, m.z + h.z], [0, 0, -1, -(m.z - h.z)],
     ]
+    if (b.numsides > 0 && (!sideArr || b.sides?.$ref !== undefined && !ref)) return // sides unreachable (ZoneTool zones: a stray reference)
     for (let k = 0; sideArr && k < b.numsides; k++) {
       const sd = get(sideArr, first + k)
+      if (!sd) return
       const pr = sd.plane?.$ref !== undefined ? zone.resolveRef(sd.plane.$ref) : null
       const pl = pr ? get(pr.array, pr.index) : sd.plane
       if (pl?.normal) planes.push([pl.normal[0], pl.normal[1], pl.normal[2], pl.dist])
