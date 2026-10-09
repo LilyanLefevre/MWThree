@@ -13,3 +13,4 @@ inputs/
 .playwright-cli/
 .claude/settings.local.json
 extra-maps/
+private-pack/
