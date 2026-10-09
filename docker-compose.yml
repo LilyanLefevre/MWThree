@@ -1,0 +1,10 @@
+# MW3_DIR: your MW3 installation (or a folder with zone/ and main/), read-only. Then open http://<host>:4173
+services:
+  mwthree:
+    build: .
+    image: ghcr.io/lilyanlefevre/mwthree:latest
+    ports:
+      - "4173:4173"
+    volumes:
+      - "${MW3_DIR:-./inputs}:/data:ro"
+    restart: unless-stopped

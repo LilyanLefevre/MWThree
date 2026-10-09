@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+inputs
+docs
+.git
+.github
+.claude
+.opencode
+.playwright-cli
+**/.DS_Store
