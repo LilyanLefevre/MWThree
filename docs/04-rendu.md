@@ -115,3 +115,16 @@ flowchart TD
 | rechargement (cache IndexedDB) | ≈ 2,5 s, géométrie et textures comprises |
 
 Pistes : décodage paresseux des structures, moins de copies de tableaux, cache du résultat (IndexedDB).
+
+## Interface
+
+Trois écrans pilotés par `App.tsx` : **menu** (`ui/MainMenu.tsx`), **chargement** (`ui/LoadingScreen.tsx`), **jeu** (`ui/Hud.tsx` + `ui/PauseMenu.tsx`), dans l'esprit des menus de MW3 (2011) : visuels plein cadre, bandes sombres, capitales condensées (Oswald), accent kaki (`ui/ui.css`).
+
+- Les images viennent des `.iwd` de la source choisie : vignettes `preview_mp_<map>_lobby` (512×256, DXT1) et écrans `loadscreen_mp_<map>` (1280×720, BGR non compressé). Elles sont stockées sans mipmaps (`IMG_FLAG_NOMIPMAPS`, bit 1 des flags IWi) ; un worker dédié (`worker/imageWorker.ts`) les décode et les renvoie en JPEG (`OffscreenCanvas`).
+- Le texte sous le nom de la map est un texte de remplacement (`mapNames.ts`) : les chaînes d'origine sont dans les zones localisées (`zone/english/*.ff`).
+- L'écran de chargement couvre la scène jusqu'à l'arrivée des textures ; la progression combine le téléchargement du `.ff` (maps du serveur), les étapes du worker et le décompte des textures.
+- Le menu pause s'ouvre quand la souris est libérée (Échap) ; seul « Reprendre » laisse remonter le clic jusqu'au contrôle de capture du pointeur.
+
+![Menu principal](images/screens/menu.jpg)
+![Menu pause](images/screens/pause.jpg)
+

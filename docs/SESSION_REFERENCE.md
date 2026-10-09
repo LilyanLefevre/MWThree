@@ -11,6 +11,7 @@
 | 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques et props d'entités (`script_model`, état intact) instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Textures de tous les modèles (y compris props d'entités) et formats IWi wavelet décodés |
 | 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (formule du moteur). Props éclairés par la light grid. Manquent : spec maps, shaders d'origine |
 | 6 — Entités / UX | ✓ — noms de maps, téléportation entre spawns, repères de spawns, objectifs des modes de jeu, mini-carte |
+| 7 — Interface | ✓ — menu (maps du serveur ou dossier local), écrans de chargement d'origine, HUD, menu pause ; release locale via `vite preview` |
 
 ## Lancer
 
@@ -19,14 +20,16 @@ npm run build -w packages/iw5-core   # le viewer importe le dist
 npm run dev                          # http://localhost:5173
 ```
 
-- Bouton « Select MW3 Game Folder » → choisir le dossier d'installation (ou un dossier contenant `zone/<map>/mp_<map>.ff`), puis cliquer une map.
-- Raccourci dev (Vite uniquement) : `http://localhost:5173/?dev=dome` (ou toute map de `inputs/zone/`, ex. `?dev=village`) charge `inputs/zone/dome/mp_dome.ff` ; `&free=1` accepte le clavier sans pointer lock (tests automatisés) ; en dev, `window.__look(yaw, pitch, [x, y, z]?)` oriente la caméra (et la place en vol libre) pour cadrer une capture.
-- **H** affiche l'aide des commandes ; le panneau d'info montre l'état des calques (●/○).
+- **Menu** (`ui/MainMenu.tsx`) : onglet Serveur (maps listées par `/__inputs-list/maps`, servies par le plugin `localInputs` de `vite.config.ts` en dev **et** en `vite preview`) ou Mes fichiers (dossier MW3 via `showDirectoryPicker`). Vignettes `preview_mp_<map>_lobby`, fond = `loadscreen_mp_<map>` de la map survolée, lus dans les `.iwd` par `worker/imageWorker.ts` (`menuImages.ts`).
+- **Chargement** (`ui/LoadingScreen.tsx`) : écran d'origine de la map, nom, ligne de lieu (texte de remplacement dans `mapNames.ts` : les vraies chaînes sont dans `zone/english/*.ff`, absent de `inputs/`), progression (téléchargement, étapes du worker, textures) ; il reste affiché jusqu'aux textures.
+- **Jeu** : HUD (`ui/Hud.tsx` : mini-carte, réticule, map et mode, raccourcis ; **I** = panneau technique), **Échap** = menu pause (`ui/PauseMenu.tsx` : reprendre, changer de map, calques, commandes).
+- `?map=dome` (ou `?dev=dome`) ouvre directement une map du serveur ; `&free=1` accepte le clavier sans pointer lock (tests automatisés) ; en dev, `window.__look(yaw, pitch, [x, y, z]?)` oriente la caméra (et la place en vol libre). La fin de chargement se détecte par la présence de `.hud`.
+- **Release locale** : `npm run build` puis `npm run preview -w packages/viewer -- --host` (port 4173) ; testé sur le PC (16 maps listées, Seatown chargée). Un hébergement statique de `packages/viewer/dist/` n'a pas d'onglet Serveur.
 - Contrôles : clic = capture souris, WASD/ZQSD, Espace = saut, Maj = sprint, Ctrl = accroupi, **V = vol libre**, **C** = afficher la collision, **T / Maj+T** = spawn suivant/précédent (spawns deathmatch), **O** = repères de spawns (bleu alliés, rouge axe, vert deathmatch, jaune autres modes), **G** = volumes des triggers (orange : utilisation/bombe, jaune : zones, rouge : dégâts), **B** = objectifs (drapeaux de domination A/B/C avec leur rayon de capture, sites de bombe, drapeaux CTF, QG, sabotage ; affichés par défaut, aussi sur la mini-carte)
-- Mini-carte en bas à gauche : zone jouable (délimitée par les spawns) vue de dessus, ombrée par la hauteur, avec les spawns et le joueur
+- Mini-carte en haut à gauche : zone jouable (délimitée par les spawns) vue de dessus, ombrée par la hauteur, avec les spawns et le joueur
 - Les maps sont listées sous leur nom commercial (Dome, Fallen, Bakaara…) (Espace/Ctrl = monter/descendre).
 - Chargement : géométrie en quelques secondes (Web Worker), puis les textures arrivent (≈ 300 images pour `mp_dome`) ; voir « Perf » dans `RE_NOTES.md`.
-- **Cache** : le résultat décodé (géométrie + textures) est gardé dans IndexedDB ; recharger la même map prend ~2-3 s au lieu de ~30 s. Incrémenter `CACHE_VERSION` (`packages/viewer/src/worker/cache.ts`) quand l'extraction change.
+- **Cache** : le résultat décodé (géométrie + textures, ces dernières par morceaux de 64 Mo car Chrome refuse les valeurs IndexedDB de plus de ~127 Mo) est gardé dans IndexedDB, avec une clé qui dépend du `.ff` et de l'ensemble des `.iwd` ; les versions précédentes sont purgées. Incrémenter `CACHE_VERSION` (`packages/viewer/src/worker/cache.ts`) quand l'extraction change.
 - Les textures sont lues dans `main/*.iwd` du dossier choisi (ou `inputs/main/` avec `?dev=`).
 
 ### Sur le PC de test (Windows, `ssh pc`)

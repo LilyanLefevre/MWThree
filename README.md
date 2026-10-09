@@ -6,6 +6,10 @@ Reconstruit un Call of Duty MW3 (2011) jouable dans le navigateur en parsant les
 
 ![Dome dans le viewer](docs/images/screens/dome-hero.jpg)
 
+| Menu : maps du serveur ou de votre dossier | Écran de chargement de la map |
+|---|---|
+| ![Menu principal](docs/images/screens/menu.jpg) | ![Chargement de Resistance](docs/images/screens/loading-resistance.jpg) |
+
 ## Aperçu (map `mp_dome`)
 
 | Visite des spawns (`T`) | Intérieur, lightmaps et ombres |
@@ -14,8 +18,9 @@ Reconstruit un Call of Duty MW3 (2011) jouable dans le navigateur en parsant les
 | **Objectifs (`B`) et mini-carte** | **Collision (`C`) : brushes + props** |
 | ![Objectifs](docs/images/screens/dome-objectives.jpg) | ![Collision](docs/images/screens/dome-collision.jpg) |
 
-Ce qui est fait : géométrie du monde, props et entités (véhicules, caisses…), textures et normal maps lues dans les `.iwd`,
-lightmaps et soleil de la map, ciel, collision (brushes + props) avec déplacement FPS, objectifs des modes de jeu, mini-carte,
+Ce qui est fait : menu (maps partagées par le serveur ou dossier MW3 local), écrans de chargement d'origine, HUD et menu pause ;
+géométrie du monde, props et entités (véhicules, caisses…), textures et normal maps lues dans les `.iwd`, éclairage du moteur
+(lightmaps, light grid, soleil, brouillard), ciel, collision avec déplacement FPS, objectifs des modes de jeu, mini-carte,
 cache des maps décodées. Détails techniques et schémas : [`docs/`](docs/README.md).
 
 ---
@@ -23,7 +28,7 @@ cache des maps décodées. Détails techniques et schémas : [`docs/`](docs/READ
 ## Prérequis
 
 - **Node.js** >= 20
-- **Navigateur** : Chrome ou Edge (nécessaire pour l'API `showDirectoryPicker`)
+- **Navigateur** : Chrome ou Edge pour charger son propre dossier (API `showDirectoryPicker`) ; les maps du serveur marchent partout
 - **Installation MW3 locale** : pour tester avec les vrais fichiers
 
 ---
@@ -57,11 +62,22 @@ mwthree/
 npm run dev
 ```
 
-Ouvre `http://localhost:5173` :
-- Bouton **"Select MW3 Game Folder"** : choisir l'installation MW3 (ou un dossier contenant `zone/<map>/mp_<map>.ff`), puis cliquer une map
-- La géométrie de la map est chargée dans un Web Worker (≈ 20–30 s) puis explorable : clic = capture souris, WASD/ZQSD, Espace, Maj, **V = vol libre**
-- Dev : `http://localhost:5173/?dev=dome` charge directement `inputs/zone/dome/mp_dome.ff`
-- Voir `docs/SESSION_REFERENCE.md` pour l'état détaillé
+Ouvre `http://localhost:5173` sur le menu :
+- onglet **Serveur** : les maps de `inputs/zone/<map>/mp_<map>.ff` de la machine qui lance le serveur ;
+- onglet **Mes fichiers** : choisir son installation MW3 (ou un dossier contenant `zone/<map>/mp_<map>.ff` et `main/*.iwd`) ;
+- en jeu : clic = capture souris, ZQSD/WASD, Espace, Maj, **V** = vol libre, **T** = spawn suivant, **Échap** = menu pause (commandes, calques) ;
+- `?map=dome` ouvre directement une map du serveur.
+
+### Release locale (partager ses maps sur le réseau)
+
+```bash
+npm run build                                          # iw5-core puis le viewer
+npm run preview -w packages/viewer -- --host           # http://<ip-de-la-machine>:4173
+```
+
+`vite preview` sert le build **et** les fichiers de `inputs/` de la machine aux autres appareils du réseau local (rien n'est publié
+sur internet). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il n'y a alors pas d'onglet Serveur,
+chacun charge son propre dossier MW3.
 
 ### Build complet (tous les packages)
 
@@ -130,8 +146,8 @@ npm run build
 # 4. Lancer le viewer
 npm run dev
 
-# 5. Sélectionner un dossier MW3 via l'interface
-#    (ou ouvrir http://localhost:5173/?dev=dome pour charger inputs/zone/dome/mp_dome.ff)
+# 5. Choisir une map dans le menu (onglet Serveur si inputs/ en contient, sinon « Mes fichiers »)
+#    (ou ouvrir http://localhost:5173/?map=dome pour charger inputs/zone/dome/mp_dome.ff)
 ```
 
 ---
@@ -143,7 +159,7 @@ La map d'exemple est **`mp_dome`** (Dome), à placer dans `inputs/` (non version
 | Fichier | Taille | Usage |
 | :------ | :----- | :---- |
 | `inputs/zone/dome/mp_dome.ff` | ≈ 60 Mo | FastFile de la map (format retail `IWff0100`) |
-| `inputs/zone/dome/mp_dome_load.ff` | 24 Ko | écran de chargement (non utilisé) |
+| `inputs/main/*.iwd` | ≈ 9 Go | textures, écrans de chargement (`loadscreen_mp_*`) et vignettes (`preview_mp_*`) |
 
 Ces fichiers proviennent de ta propre installation MW3 (`zone/<langue>/`). Les 16 maps `mp_*` testées
 se lisent à l'octet près ; `mp_dome` est celle utilisée pour les tests d'intégration et `/?dev=dome`.
@@ -159,8 +175,9 @@ se lisent à l'octet près ; `mp_dome` est celle utilisée pour les tests d'int�
 | 2 — Zone loader et résolution de pointeurs | ✅ |
 | 3 — Collision et déplacement FPS (Rapier3D) | ✅ |
 | 4 — Géométrie visuelle (monde, props, entités, LOD, ciel) | ✅ |
-| 5 — Textures, normal maps, lightmaps | ✅ (éclairage approché) |
+| 5 — Textures, normal maps, éclairage du moteur (lightmaps, light grid, brouillard) | ✅ |
 | 6 — Entités et UX explorateur (spawns, objectifs, mini-carte) | ✅ |
+| 7 — Menu, écrans de chargement, HUD, menu pause | ✅ |
 
 Détails : [`docs/`](docs/README.md).
 
