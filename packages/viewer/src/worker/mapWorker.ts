@@ -14,9 +14,34 @@ type TexturesMessage = Extract<MapResponse, { type: 'textures' }>
 const post = (msg: MapResponse, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(msg, transfer)
 
 /** Post a message, keeping a cached copy first (its buffers are transferred, i.e. detached, by the post). */
-async function postAndCache(key: string, msg: DoneMessage | TexturesMessage) {
+async function postAndCache(key: string, msg: DoneMessage) {
   await cachePut(key, msg)
   post(msg, transferablesOf(msg))
+}
+
+/** Chrome refuses IndexedDB values over ~127 MB (mp_paris textures: 137 MB): textures are stored in chunks. */
+const TEXTURE_CHUNK_BYTES = 64 << 20
+const textureBytes = (t: TextureData) => (t.rgba?.byteLength ?? 0) + (t.compressed?.mips.reduce((a, m) => a + m.data.byteLength, 0) ?? 0)
+
+async function postAndCacheTextures(key: string, msg: TexturesMessage) {
+  const chunks: TextureData[][] = [[]]
+  let size = 0
+  for (const t of msg.textures) {
+    if (size > TEXTURE_CHUNK_BYTES) { chunks.push([]); size = 0 }
+    chunks[chunks.length - 1].push(t); size += textureBytes(t)
+  }
+  for (let i = 0; i < chunks.length; i++) await cachePut(`${key}:${i}`, chunks[i])
+  await cachePut(key, { ...msg, textures: [], chunks: chunks.length })
+  post(msg, transferablesOf(msg))
+}
+
+async function cachedTextures(key: string): Promise<TexturesMessage | undefined> {
+  const head = await cacheGet<TexturesMessage & { chunks: number }>(key)
+  if (!head) return undefined
+  const parts = await Promise.all(Array.from({ length: head.chunks }, (_, i) => cacheGet<TextureData[]>(`${key}:${i}`)))
+  if (parts.some(p => !p)) return undefined
+  const { chunks: _, ...msg } = head
+  return { ...msg, textures: parts.flat() as TextureData[] }
 }
 
 function buildGeometry(zone: LoadedZone, fileName: string, zoneBytes: number, times: { decompress: number; parse: number; start: number }): DoneMessage {
@@ -122,11 +147,15 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
   const { buffer, fileName, iwd, s3tc } = e.data
   try {
     const start = performance.now()
-    const key = `${cacheKey(fileName, buffer)}${s3tc ? ':s3tc' : ''}`
+    // the textures depend on the archives too: a folder with fewer .iwd must not reuse (or poison) a fuller entry
+    const archives = iwd.map(s => ('file' in s ? `${s.file.name}:${s.file.size}` : s.url.split('/').pop())).sort().join('|')
+    let h = 0
+    for (let i = 0; i < archives.length; i++) h = Math.imul(h ^ archives.charCodeAt(i), 16777619)
+    const key = `${cacheKey(fileName, buffer)}${s3tc ? ':s3tc' : ''}:${iwd.length}-${(h >>> 0).toString(16)}`
 
     post({ type: 'progress', stage: 'Recherche dans le cache' })
     const cachedGeo = await cacheGet<DoneMessage>(`${key}:geo`)
-    const cachedTex = iwd.length ? await cacheGet<TexturesMessage>(`${key}:tex`) : undefined
+    const cachedTex = iwd.length ? await cachedTextures(`${key}:tex`) : undefined
     if (cachedGeo && (cachedTex || !iwd.length)) {
       cachedGeo.stats = { ...cachedGeo.stats, fromCache: true, msTotal: Math.round(performance.now() - start) }
       post(cachedGeo, transferablesOf(cachedGeo))
@@ -147,7 +176,7 @@ self.onmessage = async (e: MessageEvent<MapRequest>) => {
     await postAndCache(`${key}:geo`, geo)
 
     // textures are streamed after the geometry so the map is explorable immediately
-    if (iwd.length) await postAndCache(`${key}:tex`, await buildTextures(zone, propMaterials, iwd, s3tc))
+    if (iwd.length) await postAndCacheTextures(`${key}:tex`, await buildTextures(zone, propMaterials, iwd, s3tc))
   } catch (err) {
     post({ type: 'error', message: err instanceof Error ? err.message : String(err) })
   }
