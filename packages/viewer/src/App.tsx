@@ -247,7 +247,7 @@ function App() {
                 ? `chargé depuis le cache en ${world.stats.msTotal} ms`
                 : `décompression ${world.stats.msDecompress} ms · lecture ${world.stats.msParse} ms${world.stats.msTextures ? ` · textures ${world.stats.msTextures} ms` : ''}`}
             </div>
-            <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes + ${world.collision.models.toLocaleString()} props` : 'collision : mesh visible'}</div>
+            <div>{world.collision ? `collision : ${world.collision.brushes.toLocaleString()} brushes` : 'collision : mesh visible'}</div>
             <div style={{ marginTop: 4 }}>
               {[
                 ['C', 'collision', showCollision],

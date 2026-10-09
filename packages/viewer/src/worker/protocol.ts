@@ -47,7 +47,7 @@ export interface MapStats {
 }
 
 /** Physics geometry built from clipMap_t brushes and terrain triangles. */
-export interface CollisionData { positions: Float32Array; indices: Uint32Array; brushes: number; models: number }
+export interface CollisionData { positions: Float32Array; indices: Uint32Array; brushes: number }
 
 export type StaticModelData = Pick<StaticModelBatch, 'name' | 'positions' | 'normals' | 'uvs' | 'colors' | 'indices' | 'groups' | 'matrices' | 'far' | 'farDistance'> & {
   /** light grid sample per instance (PROP_LIGHT_STRIDE floats: ambient cube + sun weight) */
