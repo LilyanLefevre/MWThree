@@ -27,17 +27,33 @@ puis l'**XAssetList** (16 octets : `stringCount`, `strings*`, `assetCount`, `ass
 
 > Un ancien dossier `inputs/mp_seatown/` au format "IW4x" (mod) n'est pas supporté ; utiliser les zones retail `inputs/zone/<map>/`.
 
-### Maps custom (ZoneTool, `IWffu100` + Zstandard) — décompression faite, zone non lue
+### Maps custom (ZoneTool / Plutonium) — lues
 
-Les maps de la communauté pour serveurs privés (`usermaps/<map>/<map>.ff` + `.iwd` + `.arena`, ex. `mp_shipment`, `mp_rust_long`)
-sont des FastFiles non signés dont le flux commence, après les 21 octets d'en-tête, par la signature Zstandard `28 B5 2F FD` (version
-2000 dans l'en-tête ; ZoneTool, `FFCompression.cpp`). `FastFileLoader` les décompresse avec `fzstd` (JS pur). L'en-tête XFile (taille,
-9 blocs) et la liste d'assets (tous les pointeurs à `0xFFFFFFFF`) ont la forme habituelle, et les ~28 premiers assets (déclarations,
-shaders vertex et pixel) se lisent. **Désynchronisation** ensuite sur `mp_shipment` : à l'entrée n°28 (liste : déclaration de vertex)
-le flux contient un shader vertex, puis un pixel (`ps_3_0`), si bien que le lecteur n'atteint que 2,2 Mo sur 24 (blocs simulés 1,9 Mo
-sur 10,8 Mo). Ces zones listent aussi explicitement les shaders, déclarations et images, qui sont inline dans les zones retail.
-Pistes : une déclaration de vertex identique déjà écrite n'a peut-être pas de données dans le flux ; ou les structs ZoneTool diffèrent
-du schéma OAT. Non résolu.
+Les maps de la communauté pour serveurs privés (`usermaps/<map>/<map>.ff` + `.iwd` (images) + `_load.ff/.iwd` + `.arena`, ex. `mp_shipment`,
+`mp_rust_long`) sont liées par **ZoneTool** (GPL v3, `github.com/ZoneTool/zonetool`, dossier `src/IW5` : lu comme référence de format, aucun
+code repris). Écarts avec une zone du jeu, tous gérés dans `FastFileLoader` / `ZoneLoader` :
+
+1. **Compression Zstandard** : `IWffu100`, version 2000, flux commençant par `28 B5 2F FD` après les 21 octets d'en-tête (`fzstd`).
+2. **En-têtes brouillés** : la struct d'en-tête de 7 types (`MaterialTechniqueSet`, `ComWorld`, `MapEnts`, `FxWorld`, `clipMap_t`, `GfxWorld`,
+   `WeaponCompleteDef`) subit 4 tours de `b = ~b ^ clé[(tour × taille + i) % longueurClé] ^ tour`, avec la clé
+   `<nom de la zone>: This fastfile is property of the Plutonium Project.` (le nom = celui du `.ff` sans extension). Détection : une fois en
+   clair, le premier mot (pointeur de nom) vaut `0xFFFFFFFF`. **Piège** : si la taille de la struct est un multiple de la longueur de la clé
+   (64 pour `mp_shipment`), les 4 tours s'annulent et la struct reste en clair (c'est le cas de `clipMap_t`, 256 octets).
+3. **Pointeurs oubliés** : ZoneTool laisse parfois une adresse mémoire de son processus dans un pointeur (`PhysCollmap.info`,
+   `clipMap_t.staticModelList`) tout en écrivant les données à la suite. Toute « référence » hors des blocs déclarés dans l'en-tête est donc
+   traitée comme « données à suivre » (zones ZoneTool uniquement).
+4. **Entités en texte** : `MapEnts.entityString` est du texte standard (`"origin" "652 -556 344"`), pas le format à identifiants numériques.
+5. **Shaders, déclarations et images listés explicitement** dans la liste d'assets (dans le jeu : inline dans les techsets) ; sans effet pour
+   le lecteur.
+6. **Archives propres à la map** : `<map>.iwd` (images) et `<map>_load.iwd` (écran de chargement, parfois sous un autre nom : `mp_rust_long` →
+   `loadscreen_mp_rust`) ; le viewer les ajoute après celles du jeu.
+7. **Écarts de comptabilité** (hooks du moteur modifié) : `XModel` 372 octets et `Material` 108 octets en mémoire, alignements `+7/+8`. Ils
+   ne changent pas les octets lus ; il reste 39 octets (`mp_shipment`) et 103 (`mp_rust_long`) de moins que l'en-tête dans le bloc VIRTUAL
+   simulé, sans effet constaté (700 des 701 références de brushes de Shipment tombent pile dans leur tableau).
+
+Résultat : `mp_shipment` (1966 assets, 24 Mo) et `mp_rust_long` (2325 assets, 66 Mo) se lisent entièrement, les blocs RUNTIME, VERTEX et INDEX
+tombent exactement sur l'en-tête, et toutes les extractions passent. Connu : un arbre de Shipment a une géométrie déformée (format de
+sommet à vérifier), et un brush de Shipment référence des côtés introuvables (ignoré).
 
 ## 2. Modèle de chargement (miroir de OpenAssetTools)
 
