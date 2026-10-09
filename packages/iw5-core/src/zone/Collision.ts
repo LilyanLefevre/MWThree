@@ -1,7 +1,7 @@
 // clipMap_t brushes (+ terrain triangles) -> a single triangle mesh for player physics.
 import type { LoadedZone } from './ZoneLoader.js'
 import { PlainArray } from './ZoneLoader.js'
-import { UNIT_SCALE } from './MapExtract.js'
+import { UNIT_SCALE, extractMapEnts } from './MapExtract.js'
 import { convexFaces, type Plane } from './Convex.js'
 
 const CONTENTS_SOLID = 0x1
@@ -30,9 +30,10 @@ export function extractCollisionMesh(zone: LoadedZone): CollisionMesh | null {
     pos.push(x * UNIT_SCALE, z * UNIT_SCALE, -y * UNIT_SCALE)
     return pos.length / 3 - 1
   }
+  const gameplay = submodelBrushes(zone, clip)
   let used = 0
   brushes.forEach((b, bi) => {
-    if (!(contents[bi] & (CONTENTS_SOLID | CONTENTS_PLAYERCLIP))) return
+    if (!(contents[bi] & (CONTENTS_SOLID | CONTENTS_PLAYERCLIP)) || gameplay.has(bi)) return
     const ref = b.sides?.$ref !== undefined ? zone.resolveRef(b.sides.$ref) : null
     const sideArr = ref?.array ?? b.sides
     const first = ref?.index ?? 0
@@ -76,4 +77,37 @@ export function extractCollisionMesh(zone: LoadedZone): CollisionMesh | null {
   // Static models (clipMap.staticModelList) are not part of it: the engine only tests them with point traces
   // (bullets, sight; KisakCOD sv_world.cpp), never with the player's box; maps clip them with brushes where needed.
   return { positions: Float32Array.from(pos), indices: Uint32Array.from(idx), brushCount: used, triCount: tris }
+}
+
+/**
+ * Brushes of the submodels (*N) used by game-mode objects: script_brushmodel entities with a script_gameobjectname
+ * (HQ crates, bomb zones, sabotage, airdrop pallet), which mode scripts delete when the mode is not played.
+ * Other submodels (prefab clips, taxi ads…) stay solid, as at the start of a match.
+ */
+function submodelBrushes(zone: LoadedZone, clip: any): Set<number> {
+  const gameplay = new Set<number>()
+  for (const e of extractMapEnts(zone)) if (e.script_gameobjectname && e.model?.startsWith('*')) gameplay.add(Number(e.model.slice(1)))
+  const nodes = clip.info.leafbrushNodes
+  const out = new Set<number>()
+  // leafBrushCount > 0: a leaf listing brushes; < 0: also descend into the next node; then both children
+  const walk = (i: number) => {
+    const n = get(nodes, i)
+    if (n.leafBrushCount > 0) {
+      const b = n.data.leaf.brushes
+      const r = b?.$ref !== undefined ? zone.resolveRef(b.$ref) : null
+      const list: Uint16Array = r ? r.array.subarray(r.index, r.index + n.leafBrushCount) : b
+      for (let k = 0; k < n.leafBrushCount; k++) out.add(list[k])
+      return
+    }
+    if (n.leafBrushCount < 0) walk(i + 1)
+    const [c0, c1] = n.data.children.childOffset
+    if (c0) walk(i + c0)
+    if (c1) walk(i + c1)
+  }
+  for (const i of gameplay) {
+    if (!(i > 0 && i < (clip.numSubModels ?? 0))) continue
+    const leaf = get(clip.cmodels, i).leaf
+    if (leaf.brushContents && leaf.leafBrushNode > 0) walk(leaf.leafBrushNode) // node 0 is the world's root
+  }
+  return out
 }
