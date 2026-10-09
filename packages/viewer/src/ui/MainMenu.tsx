@@ -22,6 +22,8 @@ export interface MainMenuProps {
   /** maps shared by the server (null: this build has no server, e.g. static hosting) */
   serverMaps: string[] | null
   serverImages: ImageSource | null
+  /** the base game's archives are reachable (server copy or the visitor's folder): without them the shipped maps lack their textures */
+  serverHasGame: boolean
   /** the player's own MW3 folder, once picked */
   local: { name: string; maps: string[] } | null
   localImages: ImageSource | null
@@ -32,7 +34,7 @@ export interface MainMenuProps {
 
 const FOLDER_PICKER = typeof window !== 'undefined' && 'showDirectoryPicker' in window
 
-export function MainMenu({ serverMaps, serverImages, local, localImages, onPickFolder, onLoad, error }: MainMenuProps) {
+export function MainMenu({ serverMaps, serverImages, serverHasGame, local, localImages, onPickFolder, onLoad, error }: MainMenuProps) {
   const [tab, setTab] = useState<MapSource>(serverMaps?.length ? 'server' : 'local')
   useEffect(() => { if (serverMaps?.length && !local) setTab('server') }, [serverMaps, local])
   const maps = tab === 'server' ? serverMaps ?? [] : local?.maps ?? []
@@ -61,6 +63,12 @@ export function MainMenu({ serverMaps, serverImages, local, localImages, onPickF
           </div>
 
           {error && <div className="menu-error">{error}</div>}
+          {tab === 'server' && serverMaps && serverMaps.length > 0 && !serverHasGame && (
+            <div className="menu-note">
+              Ces maps n'embarquent pas les textures de base du jeu (elles sont à Activision). Pour les voir complètes,
+              <button className="link" onClick={() => { setTab('local'); onPickFolder() }}> choisissez votre dossier Modern Warfare 3</button>.
+            </div>
+          )}
 
           {tab === 'local' && !local && (
             <div className="empty">
@@ -82,7 +90,7 @@ export function MainMenu({ serverMaps, serverImages, local, localImages, onPickF
 
           <div className="menu-foot mono">
             {tab === 'local' && local && <button className="btn ghost caps" onClick={onPickFolder}>Changer de dossier</button>}
-            <span>{tab === 'local' && local ? `Dossier : ${local.name || 'sélectionné'}` : 'Les fichiers du jeu ne sont jamais publiés'}</span>
+            <span>{tab === 'local' && local ? `Dossier : ${local.name || 'sélectionné'}` : 'Les fichiers de Modern Warfare 3 ne sont jamais publiés'}</span>
           </div>
         </div>
 
