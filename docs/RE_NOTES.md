@@ -111,6 +111,24 @@ secondary sur toute sa hauteur : l'ambiant venait d'une autre zone de l'atlas (f
 Les props (shaders `lp_*_sun`) : `(2·texel)² + saturate(N·sunDir) × sunColor × texel.w`, texel = texture 3D 4×4×4 de la light grid
 lue sur la surface du cube (`n / max|n|`), `w` = part de soleil visible.
 
+### Images : formats IWi et noms
+
+- `IwiFormat` (iwi v8, OpenAssetTools `IwiTypes.h`) : 1 BGRA, 2 BGR, 3 luminance+alpha, 4 luminance, 5 alpha, **6-10 wavelet**
+  (RGBA, RGB, LA, L, A), 11-13 DXT1/3/5, 14 DXN… Le format wavelet (Haar 2×2 + Huffman, 3 tables de codes LSB-first) se décode du
+  niveau 1×1 jusqu'au plus grand, chaque niveau partant du précédent (`Wavelet.ts`, port de `IwiWaveletDecoder.cpp`). Sur
+  `mp_seatown`, `wood_split_log_brown_col` / `_dark_col` (21 000 triangles de bois) sont en format 7.
+- Un nom d'image qui commence par `,` désigne un asset image défini dans une autre zone : le fichier est dans les `.iwd` sous le nom
+  sans virgule (`,me_roof` → `me_roof.iwi`).
+- Restent introuvables, sans effet visible : les images par défaut du moteur (`$white`, `default`) sur des matériaux masqués.
+
+### Collision des modèles statiques
+
+`clipMap_t.staticModelList` liste les modèles statiques (avec `XModel.contents`, `collLod`, `collSurfs`), mais le moteur ne les
+teste qu'avec des tracés de taille nulle : `SV_Trace` n'appelle `CM_PointTraceStaticModels` que si `maxs − mins == 0` (KisakCOD
+`sv_world.cpp`), et `XModelTraceLine` intersecte les `collSurfs` (triangles décrits par `plane` + `svec`/`tvec` : point du plan avec
+`s = svec·p − svec.w`, `t = tvec·p − tvec.w`, `s, t ≥ 0`, `s + t ≤ 1`). Le joueur (boîte) ne les touche jamais ; les maps posent des
+brushes de clip autour des objets bloquants (vérifié : on bute sur un étal de `mp_seatown` sans collision de modèle).
+
 ### Matériaux mélangés (technique sets)
 
 Le mode de mélange se lit dans le nom du technique set : `<préfixe>_unlit_[falloff_]{add,screen,multiply}[_lin]` (surfaces

@@ -7,8 +7,8 @@
 | 0 — Fondations (monorepo, viewer R3F, détection MW3) | ✓ |
 | 1 — Décompression FastFile (`IWff0100` signé, `IWffu100`) | ✓ |
 | 2 — Zone loader (assets, pointeurs, blocs) | ✓ — les 16 maps `mp_*` de `inputs/zone/` se chargent à l'octet près |
-| 3 — Collision + déplacement FPS | ✓ — brushes `clipMap_t` solides/playerclip → enveloppes convexes → un trimesh Rapier (+ triangles de terrain) ; marche, saut, vol libre, **C** affiche la collision. Reste : collision des modèles statiques |
-| 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques et props d'entités (`script_model`, état intact) instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Manquent : LOD, collision des props |
+| 3 — Collision + déplacement FPS | ✓ — brushes `clipMap_t` solides/playerclip → enveloppes convexes → un trimesh Rapier (+ triangles de terrain) ; marche, saut, vol libre, **C** affiche la collision. Les modèles statiques ne bloquent pas le joueur en jeu (clip par brushes) |
+| 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques et props d'entités (`script_model`, état intact) instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Textures de tous les modèles (y compris props d'entités) et formats IWi wavelet décodés |
 | 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (formule du moteur). Props éclairés par la light grid. Manquent : spec maps, shaders d'origine |
 | 6 — Entités / UX | ✓ — noms de maps, téléportation entre spawns, repères de spawns, objectifs des modes de jeu, mini-carte |
 
