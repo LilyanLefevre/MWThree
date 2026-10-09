@@ -1,10 +1,13 @@
-# MW3_DIR: your MW3 installation (or a folder with zone/ and main/), read-only. Then open http://<host>:4173
+# The two maps shipped with the project are always served. To add more (and the base game's textures), point MW3_DIR at a folder:
+#   MW3_DIR="/path/to/Call of Duty Modern Warfare 3" docker compose up -d --build
+# It may hold zone/<map or language>/mp_*.ff, usermaps/<map>/ (community maps with their .iwd) and main/*.iwd; read-only.
+# Without MW3_DIR the shared folder is an empty ./extra-maps. Then open http://<host>:4173
 services:
   mwthree:
     build: .
     image: ghcr.io/lilyanlefevre/mwthree:latest
     ports:
-      - "4173:4173"
+      - "${PORT:-4173}:4173"
     volumes:
-      - "${MW3_DIR:-./inputs}:/data:ro"
+      - "${MW3_DIR:-./extra-maps}:/data:ro"
     restart: unless-stopped

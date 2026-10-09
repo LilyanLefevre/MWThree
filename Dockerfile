@@ -1,5 +1,7 @@
-# MWThree: the viewer, served with `vite preview`, sharing the game files mounted at /data.
-# docker run -p 4173:4173 -v "/path/to/Call of Duty Modern Warfare 3:/data:ro" ghcr.io/lilyanlefevre/mwthree
+# MWThree: the viewer, served with `vite preview`, with the maps shipped in maps/ built in. A folder mounted at /data is
+# shared on top (optional): extra maps and the base game's archives.
+# docker run -p 4173:4173 ghcr.io/lilyanlefevre/mwthree                                                # shipped maps only
+# docker run -p 4173:4173 -v "/path/to/Call of Duty Modern Warfare 3:/data:ro" ghcr.io/lilyanlefevre/mwthree   # + your folder
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
