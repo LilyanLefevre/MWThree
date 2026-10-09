@@ -98,6 +98,13 @@ Sans Docker : `npm run build`, puis `MWTHREE_INPUTS="/chemin/vers/MW3" npm run p
 serveur partage `inputs/` s'il existe). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il offre les
 deux maps incluses, et chaque visiteur peut y ajouter son dossier MW3.
 
+### Protéger une instance par mot de passe
+
+`MWTHREE_PASSWORD=secret` (ou `scripts/deploy.sh --password secret`) exige ce mot de passe (HTTP Basic, nom d'utilisateur libre) pour **toute**
+requête, pages et fichiers compris : c'est une vraie protection, à utiliser pour une instance privée qui partage votre installation MW3.
+Elle ne peut pas exister sur GitHub Pages : un site statique ne peut pas protéger ses fichiers, et les fichiers d'un dépôt public sont
+publics.
+
 ### Docker
 
 ```bash
