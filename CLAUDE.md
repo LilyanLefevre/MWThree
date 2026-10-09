@@ -19,7 +19,7 @@ faits vérifiés, points non résolus). `docs/README.md` indexe la doc technique
 
 ## Bonnes pratiques
 
-- **Git** : commits directement sur `main`, atomiques, messages conventionnels (`feat:`, `fix:`, `perf:`, `docs:`, `refactor:`, `chore:`), push après chaque commit. Ne jamais versionner de fichiers d'outils IA (`.opencode/`, `.playwright-cli/`, `.claude/settings.local.json`) ni `.DS_Store`.
+- **Git** : commits directement sur `main`, atomiques, messages conventionnels (`feat:`, `fix:`, `perf:`, `docs:`, `refactor:`, `chore:`), push après chaque commit. Pas de ligne `Co-Authored-By` ni `Claude-Session` dans les messages. Ne jamais versionner de fichiers d'outils IA (`.opencode/`, `.playwright-cli/`, `.claude/settings.local.json`) ni `.DS_Store`.
 - **Doc** : mettre à jour `docs/SESSION_REFERENCE.md` (état et prochaines étapes), `docs/04-rendu.md` / `docs/02-fichiers.md` (fonctionnement) et `docs/RE_NOTES.md` (découvertes et impasses) à chaque avancée, dans le commit concerné ou juste après.
 - **Map de test** : toujours `mp_dome` (la plus rapide) pour les vérifications et captures. Les autres maps servent seulement à vérifier la non-régression via `checkMaps`.
 - **Vérification visuelle** : Playwright CLI avec une session dédiée (`playwright-cli -s=mw3 …`), jamais la session par défaut (c'est le navigateur de l'utilisateur). En dev, `window.__player` expose la position et `window.__render` les fps / triangles. Supprimer `.playwright-cli/` après usage.
