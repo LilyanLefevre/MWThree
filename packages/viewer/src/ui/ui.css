@@ -1,0 +1,122 @@
+/* Menus, loading screen and HUD, in the spirit of MW3's 2011 UI: full-bleed art, dark translucent bands,
+   condensed caps, a single warm accent. */
+:root {
+  --bg: #07090a;
+  --panel: rgba(10, 12, 12, 0.8);
+  --panel-solid: #0e1112;
+  --line: rgba(236, 233, 225, 0.14);
+  --text: #ece9e1;
+  --muted: #9a9d95;
+  --dim: #63675f;
+  --accent: #d4b46a;
+  --accent-soft: rgba(212, 180, 106, 0.16);
+  --danger: #d0573f;
+  --display: 'Oswald', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+.ui-root { position: absolute; inset: 0; z-index: 100; color: var(--text); font-family: var(--display); }
+.ui-root button { font: inherit; color: inherit; }
+.caps { text-transform: uppercase; letter-spacing: 0.08em; }
+.mono { font-family: var(--mono); letter-spacing: 0; }
+
+/* full-bleed art behind menus and loading */
+.ui-backdrop { position: absolute; inset: 0; background: var(--bg) center / cover no-repeat; transition: background-image 0.4s; }
+.ui-backdrop::after { content: ''; position: absolute; inset: 0; }
+.ui-backdrop.menu::after { background: linear-gradient(90deg, rgba(7, 9, 10, 0.96) 0%, rgba(7, 9, 10, 0.88) 42%, rgba(7, 9, 10, 0.35) 100%); }
+.ui-backdrop.loading::after { background: linear-gradient(180deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.55) 72%, rgba(0, 0, 0, 0.92) 100%); }
+
+/* ---------------------------------------------------------------- main menu */
+.menu { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 760px) 1fr; }
+.menu-main { display: flex; flex-direction: column; padding: 48px 40px 32px 56px; min-height: 0; }
+.brand { font-weight: 700; font-size: 56px; line-height: 1; letter-spacing: 0.04em; }
+.brand span { color: var(--accent); }
+.tagline { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.tabs { display: flex; gap: 28px; margin: 40px 0 18px; border-bottom: 1px solid var(--line); }
+.tab { background: none; border: 0; padding: 0 0 10px; cursor: pointer; color: var(--muted); font-size: 18px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--text); }
+.tab[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
+.tab small { color: var(--dim); font-family: var(--mono); font-size: 11px; margin-left: 6px; }
+.map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); align-content: start; gap: 12px; overflow-y: auto; padding: 2px 8px 8px 2px; min-height: 0; }
+/* 2:1 like the game's lobby previews (padding, since aspect-ratio is unreliable on buttons in a grid) */
+.map-card { position: relative; display: block; width: 100%; height: 0; padding: 0 0 50%; border: 1px solid var(--line); background: var(--panel-solid); cursor: pointer; text-align: left; overflow: hidden; }
+.map-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.15s, transform 0.3s; }
+.map-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.85)); }
+.map-card .label { position: absolute; left: 10px; right: 10px; bottom: 8px; z-index: 1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.map-card .name { font-size: 17px; font-weight: 600; }
+.map-card .code { color: var(--muted); font-size: 10px; }
+.map-card:hover, .map-card:focus-visible { border-color: var(--accent); outline: none; }
+.map-card:hover img, .map-card:focus-visible img { opacity: 1; transform: scale(1.04); }
+.map-card:hover::before, .map-card:focus-visible::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); z-index: 2; }
+.empty { color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 520px; }
+.empty .mono { font-size: 12px; color: var(--dim); }
+.btn { display: inline-flex; align-items: center; gap: 10px; background: var(--accent); color: #12100a !important; border: 0; padding: 10px 20px; cursor: pointer; font-weight: 600; font-size: 15px; }
+.btn:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--text) !important; border: 1px solid var(--line); }
+.btn.ghost:hover { border-color: var(--accent); }
+.menu-foot { margin-top: 16px; color: var(--dim); font-size: 11px; display: flex; gap: 18px; flex-wrap: wrap; }
+.menu-error { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--danger); background: rgba(208, 87, 63, 0.12); font-family: var(--mono); font-size: 12px; }
+.menu-feature { align-self: end; justify-self: end; padding: 0 56px 48px 0; text-align: right; }
+.menu-feature .name { font-size: 64px; font-weight: 700; line-height: 1; text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); }
+.menu-feature .place { color: var(--text); opacity: 0.85; font-size: 16px; margin-top: 6px; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8); }
+
+/* ---------------------------------------------------------------- loading screen */
+.loading { position: absolute; inset: 0; }
+.loading-band { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 56px 40px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 24px; }
+.loading-name { font-size: 72px; font-weight: 700; line-height: 0.95; text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6); }
+.loading-place { margin-top: 8px; font-size: 18px; color: var(--text); opacity: 0.85; }
+.loading-status { text-align: right; color: var(--muted); font-size: 12px; min-width: 240px; }
+.loading-status .pct { display: block; color: var(--text); font-family: var(--display); font-size: 28px; font-weight: 500; }
+.loading-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, 0.08); }
+.loading-bar > div { height: 100%; background: var(--accent); transition: width 0.25s ease-out; }
+
+/* ---------------------------------------------------------------- HUD */
+.hud { position: absolute; inset: 0; z-index: 90; pointer-events: none; color: var(--text); font-family: var(--display); }
+/* keeps the bottom texts readable over bright ground */
+.hud::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.45)); }
+.hud-minimap { position: absolute; top: 20px; left: 20px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.45); padding: 4px; }
+.hud-minimap canvas { display: block; }
+.hud-crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); }
+.hud-crosshair i { position: absolute; background: rgba(236, 233, 225, 0.85); box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); }
+.hud-crosshair i:nth-child(1), .hud-crosshair i:nth-child(2) { width: 2px; height: 6px; left: 10px; }
+.hud-crosshair i:nth-child(1) { top: 0; } .hud-crosshair i:nth-child(2) { bottom: 0; }
+.hud-crosshair i:nth-child(3), .hud-crosshair i:nth-child(4) { height: 2px; width: 6px; top: 10px; }
+.hud-crosshair i:nth-child(3) { left: 0; } .hud-crosshair i:nth-child(4) { right: 0; }
+.hud-map { position: absolute; left: 24px; bottom: 22px; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9); }
+.hud-map .name { font-size: 28px; font-weight: 600; line-height: 1; }
+.hud-map .meta { margin-top: 5px; color: #c9c6bd; font-size: 12px; }
+.hud-map .mode { color: var(--accent); }
+.hud-keys { position: absolute; right: 24px; bottom: 22px; display: flex; gap: 16px; font-size: 13px; color: #c9c6bd; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); }
+.hud-keys kbd { font-family: var(--mono); font-size: 11px; color: var(--text); border: 1px solid rgba(236, 233, 225, 0.3); background: rgba(0, 0, 0, 0.6); padding: 1px 6px; margin-right: 6px; }
+.hud-toast { position: absolute; left: 50%; top: 26%; transform: translateX(-50%); font-size: 13px; color: var(--muted); background: rgba(0, 0, 0, 0.55); padding: 6px 14px; border-left: 2px solid var(--accent); }
+.hud-texturing { position: absolute; top: 24px; right: 24px; color: var(--muted); font-size: 11px; }
+.hud-debug { position: absolute; top: 20px; right: 20px; background: rgba(0, 0, 0, 0.72); padding: 10px 12px; font-family: var(--mono); font-size: 11px; line-height: 1.6; color: var(--text); min-width: 260px; }
+
+/* ---------------------------------------------------------------- pause menu */
+.pause { position: absolute; inset: 0; z-index: 150; background: rgba(5, 7, 8, 0.72); backdrop-filter: blur(6px); display: flex; align-items: center; gap: 96px; padding: 32px 72px; overflow-y: auto; }
+.pause-col { display: flex; flex-direction: column; min-width: 340px; }
+.pause-title { font-size: 40px; font-weight: 700; line-height: 1; }
+.pause-sub { color: var(--muted); font-size: 13px; margin: 6px 0 26px; }
+.pause-item { background: none; border: 0; border-left: 3px solid transparent; text-align: left; padding: 8px 14px; font-size: 22px; cursor: pointer; color: var(--muted); }
+.pause-item:hover, .pause-item:focus-visible { color: var(--text); border-left-color: var(--accent); background: linear-gradient(90deg, var(--accent-soft), transparent); outline: none; }
+.pause-section { margin-top: 26px; color: var(--dim); font-size: 12px; }
+.pause-toggle { display: flex; justify-content: space-between; gap: 24px; padding: 6px 14px; font-size: 16px; color: var(--muted); cursor: pointer; background: none; border: 0; text-align: left; }
+.pause-toggle:hover { color: var(--text); }
+.pause-toggle .state { font-family: var(--mono); font-size: 11px; }
+.pause-toggle .state.on { color: var(--accent); }
+.pause-help { min-width: 0; }
+.pause-help .pause-section { margin-top: 0; }
+.pause-keys { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 8px 20px; padding: 10px 0; font-size: 15px; color: var(--muted); }
+.pause-keys kbd { font-family: var(--mono); font-size: 11px; color: var(--text); }
+
+@media (max-width: 900px) {
+  .menu { grid-template-columns: 1fr; }
+  .menu-main { padding: 28px 20px 20px; }
+  .menu-feature { display: none; }
+  .brand { font-size: 40px; }
+  .loading-band { padding: 0 20px 28px; grid-template-columns: 1fr; }
+  .loading-name { font-size: 44px; }
+  .loading-status { text-align: left; }
+  .hud-keys { display: none; }
+  .pause { padding: 24px; flex-direction: column; align-items: flex-start; gap: 24px; }
+}
