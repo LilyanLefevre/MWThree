@@ -143,7 +143,8 @@ interface MapListing { code: string; name?: string; path: string; iwd: string[] 
 
 const BASE = import.meta.env.BASE_URL
 const STATIC = !!import.meta.env.VITE_STATIC
-const getJson = async <T,>(url: string): Promise<T | null> => { try { const r = await fetch(url); return r.ok ? await r.json() as T : null } catch { return null } }
+// no-cache: revalidate, so a redeployed site never pairs a stale manifest (Pages caches 10 min) with renamed files
+const getJson = async <T,>(url: string): Promise<T | null> => { try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.json() as T : null } catch { return null } }
 interface Local { name: string; library: LocalLibrary; images: ImageSource | null }
 
 function App() {
