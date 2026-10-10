@@ -129,3 +129,7 @@ Trois écrans pilotés par `App.tsx` : **menu** (`ui/MainMenu.tsx`), **chargemen
 ![Menu principal](images/screens/menu.jpg)
 ![Menu pause](images/screens/pause.jpg)
 
+
+## Textures de remplacement (CC0)
+
+Une image absente des archives chargées est remplacée par une texture libre (ambientCG, CC0, `packages/viewer/public/fallback/`) choisie selon des mots-clés du nom (`worker/fallback.ts`). Les maps de la communauté s'affichent ainsi sans les textures d'Activision. Mesure : Shipment en dev sur Mac, sans aucune archive du jeu, rendu avec pierre, gravier et métal à la place.
