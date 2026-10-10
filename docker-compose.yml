@@ -7,9 +7,14 @@ services:
     build: .
     image: ghcr.io/lilyanlefevre/mwthree:latest
     ports:
-      - "${PORT:-4173}:4173"
+      # loopback only by default (put a TLS reverse proxy / Cloudflare Tunnel in front); BIND=0.0.0.0 to open it on the network
+      - "${BIND:-127.0.0.1}:${PORT:-4173}:4173"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
     volumes:
       - "${MW3_DIR:-./extra-maps}:/data:ro"
     environment:
-      MWTHREE_PASSWORD: "${MWTHREE_PASSWORD:-}"   # optional: protects the whole site (HTTP Basic)
+      MWTHREE_PASSWORD: "${MWTHREE_PASSWORD:-}"   # optional: protects the whole site (HTTP Basic, over TLS only)
     restart: unless-stopped

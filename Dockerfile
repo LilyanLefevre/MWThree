@@ -14,10 +14,11 @@ RUN npm run build
 
 FROM node:22-bookworm-slim
 WORKDIR /app
-COPY --from=build /app /app
+COPY --from=build --chown=node:node /app /app
 # a folder with zone/<map>/mp_<map>.ff or zone/<language>/mp_<map>.ff, and main/*.iwd (an MW3 installation works as is)
 ENV MWTHREE_INPUTS=/data
 VOLUME /data
 EXPOSE 4173
+USER node
 WORKDIR /app/packages/viewer
 CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "4173", "--strictPort"]
