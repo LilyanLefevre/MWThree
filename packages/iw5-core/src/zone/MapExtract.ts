@@ -1,7 +1,7 @@
 // High-level extraction of renderable / simulatable data from a loaded zone.
 import type { LoadedZone } from './ZoneLoader.js'
 import { PlainArray } from './ZoneLoader.js'
-import * as pako from 'pako'
+import { MAX_ENTRY_BYTES, inflateCapped } from '../inflate'
 import { convexFaces, type Plane } from './Convex.js'
 
 /** Inches (game units) to meters. */
@@ -445,7 +445,7 @@ export function extractFog(zone: LoadedZone): Fog | null {
   const raw = zone.assets.find(a => a.typeName === 'RawFile' && /createart\/[^/]*_fog\.gsc$/.test(a.value?.name ?? ''))?.value
   if (!raw?.buffer) return null
   const buf = new Uint8Array(raw.buffer.buffer, raw.buffer.byteOffset, raw.buffer.byteLength) // char* comes out as Int8Array
-  const bytes = raw.compressedLen ? pako.inflate(buf) : buf
+  const bytes = raw.compressedLen ? inflateCapped(buf, MAX_ENTRY_BYTES) : buf
   const v: Record<string, number> = {}
   const block = new TextDecoder().decode(bytes).split('create_vision_set_fog')[1] ?? ''
   for (const m of block.matchAll(/ent\.(\w+)\s*=\s*(-?[\d.]+)\s*;/g)) v[m[1]] = Number(m[2])

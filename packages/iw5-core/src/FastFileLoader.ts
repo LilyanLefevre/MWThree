@@ -1,5 +1,4 @@
-import * as pako from 'pako'
-import { decompress as zstdDecompress } from 'fzstd'
+import { MAX_ZONE_BYTES, drainCapped, inflateCapped, zstdCapped } from './inflate'
 
 export const SUPPORTED_MAGICS = ['IWff0100', 'IWffu100'] as const
 export type FastFileMagic = typeof SUPPORTED_MAGICS[number]
@@ -18,12 +17,6 @@ const DATA_CHUNKS_PER_GROUP = 256
 
 /** Zstandard frame magic 0xFD2FB528 (little endian): custom-map linkers compress with zstd instead of zlib. */
 const isZstd = (s: Uint8Array) => s.length > 4 && s[0] === 0x28 && s[1] === 0xb5 && s[2] === 0x2f && s[3] === 0xfd
-
-function bytesToArrayBuffer(data: Uint8Array): ArrayBuffer {
-  const ab = new ArrayBuffer(data.length)
-  new Uint8Array(ab).set(data)
-  return ab
-}
 
 export class FastFileLoader {
   private buffer: ArrayBuffer
@@ -55,7 +48,7 @@ export class FastFileLoader {
   load(): ArrayBuffer {
     const compressed = this.compressedStream()
     try {
-      return bytesToArrayBuffer(isZstd(compressed) ? zstdDecompress(compressed) : pako.inflate(compressed))
+      return (isZstd(compressed) ? zstdCapped(compressed, MAX_ZONE_BYTES) : inflateCapped(compressed, MAX_ZONE_BYTES)).buffer as ArrayBuffer
     } catch (e) {
       throw new Error(`Decompression failed: ${e instanceof Error ? e.message : e}`)
     }
@@ -67,8 +60,9 @@ export class FastFileLoader {
     if (typeof DecompressionStream !== 'undefined' && !isZstd(compressed)) {
       try {
         const stream = new Blob([compressed as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate'))
-        return await new Response(stream).arrayBuffer()
-      } catch {
+        return (await drainCapped(stream, MAX_ZONE_BYTES)).buffer as ArrayBuffer
+      } catch (e) {
+        if (String(e).includes('exceeds')) throw e
         // e.g. trailing bytes after the zlib stream: fall back to pako
       }
     }

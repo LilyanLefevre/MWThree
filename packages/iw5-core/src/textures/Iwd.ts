@@ -1,17 +1,18 @@
 // Minimal random-access ZIP reader for .iwd archives (deflate or stored entries).
-import * as pako from 'pako'
+import { MAX_ENTRY_BYTES, drainCapped, inflateCapped } from '../inflate'
 
 /** Raw deflate: the platform's native decoder when there is one (browsers), pako otherwise. */
 async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
   if (typeof DecompressionStream !== 'undefined' && typeof Blob !== 'undefined') {
     try {
       const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
-      return new Uint8Array(await new Response(stream).arrayBuffer())
-    } catch {
+      return await drainCapped(stream, MAX_ENTRY_BYTES)
+    } catch (e) {
+      if (String(e).includes('exceeds')) throw e
       // fall back to pako
     }
   }
-  return pako.inflateRaw(data)
+  return inflateCapped(data, MAX_ENTRY_BYTES, true)
 }
 
 export interface RandomAccess {
@@ -36,6 +37,7 @@ export class IwdArchive {
     const count = tdv.getUint16(eocd + 10, true)
     const cdSize = tdv.getUint32(eocd + 12, true)
     const cdOffset = tdv.getUint32(eocd + 16, true)
+    if (cdOffset + cdSize > this.src.size) throw new Error('corrupt zip: central directory outside the file')
     const cd = await this.src.read(cdOffset, cdSize)
     const dv = new DataView(cd.buffer, cd.byteOffset, cd.byteLength)
     let p = 0
@@ -45,6 +47,7 @@ export class IwdArchive {
       const compSize = dv.getUint32(p + 20, true), size = dv.getUint32(p + 24, true)
       const nl = dv.getUint16(p + 28, true), el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true)
       const offset = dv.getUint32(p + 42, true)
+      if (offset >= this.src.size || size > MAX_ENTRY_BYTES) throw new Error('corrupt zip: bad entry')
       let name = ''
       for (let k = 0; k < nl; k++) name += String.fromCharCode(cd[p + 46 + k])
       this.entries.set(name, { name, method, compSize, size, offset })
@@ -56,6 +59,7 @@ export class IwdArchive {
   async read(name: string): Promise<Uint8Array | null> {
     const e = this.entries.get(name)
     if (!e) return null
+    if (e.compSize > this.src.size) throw new Error(`corrupt zip: ${name}`)
     // one read for the local header and the data: the local name/extra fields are usually as long as
     // the central directory's, plus some slack; fall back to a second read when they are longer
     const guess = 30 + e.name.length + 64
