@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, normalize } from 'node:path'
+import { createReadStream, existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { join, normalize, sep } from 'node:path'
 import { defineConfig, type Connect, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -57,6 +57,7 @@ function sendFile(req: IncomingMessage, res: ServerResponse, file: string) {
   const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range ?? '')
   if (range) {
     const start = Number(range[1]), end = Math.min(range[2] ? Number(range[2]) : size - 1, size - 1)
+    if (start > end) { res.statusCode = 416; res.setHeader('Content-Range', `bytes */${size}`); return res.end() }
     res.statusCode = 206
     res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`)
     res.setHeader('Content-Length', end - start + 1)
@@ -73,7 +74,10 @@ function sendFile(req: IncomingMessage, res: ServerResponse, file: string) {
 function resolveUnder(root: string, url: string | undefined, types: RegExp): string | null {
   const rel = normalize(decodeURIComponent((url ?? '/').split('?')[0])).replace(/^(\.\.[/\\])+/, '')
   const file = join(root, rel)
-  return file.startsWith(root) && types.test(file) && existsSync(file) ? file : null
+  if (!types.test(file) || !existsSync(file)) return null
+  // real paths: a symlink inside the folder must not lead out of it
+  const real = realpathSync(file), base = realpathSync(root)
+  return real.startsWith(base + sep) ? real : null
 }
 
 /**
@@ -82,15 +86,22 @@ function resolveUnder(root: string, url: string | undefined, types: RegExp): str
  * Meant for `vite preview` (and dev); a static host such as GitHub Pages cannot do this.
  */
 function accessPassword(): Plugin {
-  const password = process.env.MWTHREE_PASSWORD
+  // MWTHREE_PASSWORD_FILE (e.g. a Docker secret) keeps the password out of `docker inspect`
+  const file = process.env.MWTHREE_PASSWORD_FILE
+  const password = file ? readFileSync(file, 'utf8').trim() : process.env.MWTHREE_PASSWORD
   const digest = (v: string) => createHash('sha256').update(v).digest()
   const install = (middlewares: Connect.Server) => {
     if (!password) return
     const expected = digest(password)
+    // after 5 wrong passwords an address is refused for a minute (in memory, per address)
+    const failures = new Map<string, { count: number; until: number }>()
     middlewares.use((req, res, next) => {
+      const ip = req.socket.remoteAddress ?? '', f = failures.get(ip)
+      if (f && f.count >= 5 && Date.now() < f.until) { res.statusCode = 429; res.setHeader('Retry-After', '60'); return res.end('Too many attempts') }
       const header = req.headers.authorization ?? ''
       const given = header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString().split(':').slice(1).join(':') : null
-      if (given !== null && timingSafeEqual(digest(given), expected)) return next()
+      if (given !== null && timingSafeEqual(digest(given), expected)) { failures.delete(ip); return next() }
+      if (given !== null) failures.set(ip, { count: (f && Date.now() < f.until ? f.count : 0) + 1, until: Date.now() + 60_000 })
       res.statusCode = 401
       res.setHeader('WWW-Authenticate', 'Basic realm="MWThree", charset="UTF-8"')
       res.end('Authentication required')
@@ -101,6 +112,17 @@ function accessPassword(): Plugin {
     configureServer: server => install(server.middlewares),
     configurePreviewServer: server => install(server.middlewares),
   }
+}
+
+/** Basic hardening headers for everything the server sends. */
+function securityHeaders(): Plugin {
+  const install = (middlewares: Connect.Server) => { middlewares.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.setHeader('Referrer-Policy', 'no-referrer')
+    res.setHeader('X-Frame-Options', 'DENY')
+    next()
+  }) }
+  return { name: 'security-headers', configureServer: s => install(s.middlewares), configurePreviewServer: s => install(s.middlewares) }
 }
 
 /**
@@ -162,7 +184,7 @@ function localInputs(): Plugin {
 export default defineConfig({
   // under a sub-path (GitHub Pages: /<repository>/), set VITE_BASE=/<repository>/ when building
   base: process.env.VITE_BASE ?? '/',
-  plugins: [react(), accessPassword(), bundledMaps(), localInputs()],
+  plugins: [react(), securityHeaders(), accessPassword(), bundledMaps(), localInputs()],
   worker: { format: 'es' },
   optimizeDeps: { exclude: ['@dimforge/rapier3d-compat'] },
 })

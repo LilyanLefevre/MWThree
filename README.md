@@ -105,6 +105,11 @@ requête, pages et fichiers compris : c'est une vraie protection, à utiliser po
 Elle ne peut pas exister sur GitHub Pages : un site statique ne peut pas protéger ses fichiers, et les fichiers d'un dépôt public sont
 publics.
 
+HTTP Basic envoie le mot de passe en clair : ne l'exposer qu'en HTTPS (Cloudflare Tunnel, reverse proxy). Après 5 essais ratés, une adresse
+est refusée une minute. `MWTHREE_PASSWORD_FILE=/chemin` lit le mot de passe dans un fichier (secret Docker) plutôt que dans l'environnement.
+`docker-compose.yml` et `deploy.sh` n'écoutent que sur `127.0.0.1` par défaut (`BIND=0.0.0.0` / `--bind 0.0.0.0` pour ouvrir au réseau) ;
+le conteneur tourne en utilisateur non-root, en lecture seule, sans capabilities.
+
 ### Docker
 
 ```bash
