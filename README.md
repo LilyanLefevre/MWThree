@@ -94,12 +94,12 @@ deux maps incluses, et chaque visiteur peut y ajouter son dossier MW3.
 
 ### Protéger une instance par mot de passe
 
-`MWTHREE_PASSWORD=secret` (ou `scripts/deploy.sh --password secret`) exige ce mot de passe (HTTP Basic, nom d'utilisateur libre) pour **toute**
+`MWTHREE_PASSWORD=secret` (ou `scripts/deploy.sh --password secret`) exige ce mot de passe (HTTP Basic, nom d'utilisateur libre, ou celui de `MWTHREE_USER` s'il est défini) pour **toute**
 requête, pages et fichiers compris : c'est une vraie protection, à utiliser pour une instance privée qui partage votre installation MW3.
 Elle ne peut pas exister sur un hébergement statique, qui ne peut pas protéger ses fichiers.
 
 HTTP Basic envoie le mot de passe en clair : ne l'exposer qu'en HTTPS (Cloudflare Tunnel, reverse proxy). Après 5 essais ratés, une adresse
-est refusée une minute. `MWTHREE_PASSWORD_FILE=/chemin` lit le mot de passe dans un fichier (secret Docker) plutôt que dans l'environnement.
+est refusée une minute. `MWTHREE_PASSWORD_FILE=/chemin` lit le mot de passe dans un fichier (secret Docker) plutôt que dans l'environnement. Sans mot de passe, aucune saisie n'est demandée ; `MWTHREE_USER` seul fait échouer le démarrage (il ne protégerait rien).
 `docker-compose.yml` et `deploy.sh` n'écoutent que sur `127.0.0.1` par défaut (`BIND=0.0.0.0` / `--bind 0.0.0.0` pour ouvrir au réseau) ;
 le conteneur tourne en utilisateur non-root, en lecture seule, sans capabilities.
 

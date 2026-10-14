@@ -82,7 +82,7 @@ function resolveUnder(root: string, url: string | undefined, types: RegExp): str
 
 /**
  * Optional access control for a private instance: with MWTHREE_PASSWORD set, every request (page, maps, shared folder) needs
- * HTTP Basic credentials with that password (any user name). Unlike a script on the page, it protects the files themselves.
+ * HTTP Basic credentials with that password (any user name, unless MWTHREE_USER is set: then that exact name). Unlike a script on the page, it protects the files themselves.
  * Meant for `vite preview` (and dev); a static host such as GitHub Pages cannot do this.
  */
 function accessPassword(): Plugin {
@@ -90,17 +90,25 @@ function accessPassword(): Plugin {
   const file = process.env.MWTHREE_PASSWORD_FILE
   const password = file ? readFileSync(file, 'utf8').trim() : process.env.MWTHREE_PASSWORD
   const digest = (v: string) => createHash('sha256').update(v).digest()
+  // a user name alone would protect nothing: fail loudly instead of serving the site open
+  if (process.env.MWTHREE_USER && !password) throw new Error('MWTHREE_USER is set without MWTHREE_PASSWORD (or MWTHREE_PASSWORD_FILE): refusing to start')
   const install = (middlewares: Connect.Server) => {
     if (!password) return
     const expected = digest(password)
+    const expectedUser = process.env.MWTHREE_USER ? digest(process.env.MWTHREE_USER) : null
     // after 5 wrong passwords an address is refused for a minute (in memory, per address)
     const failures = new Map<string, { count: number; until: number }>()
     middlewares.use((req, res, next) => {
       const ip = req.socket.remoteAddress ?? '', f = failures.get(ip)
       if (f && f.count >= 5 && Date.now() < f.until) { res.statusCode = 429; res.setHeader('Retry-After', '60'); return res.end('Too many attempts') }
       const header = req.headers.authorization ?? ''
-      const given = header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString().split(':').slice(1).join(':') : null
-      if (given !== null && timingSafeEqual(digest(given), expected)) { failures.delete(ip); return next() }
+      const decoded = header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString() : null
+      const colon = decoded?.indexOf(':') ?? -1
+      const given = decoded !== null && colon >= 0 ? decoded.slice(colon + 1) : null
+      // both comparisons always run (no early exit on the user name); without MWTHREE_USER any name is accepted
+      const userOk = expectedUser === null || timingSafeEqual(digest(decoded?.slice(0, colon) ?? ''), expectedUser)
+      const passOk = given !== null && timingSafeEqual(digest(given), expected)
+      if (userOk && passOk) { failures.delete(ip); return next() }
       if (given !== null) failures.set(ip, { count: (f && Date.now() < f.until ? f.count : 0) + 1, until: Date.now() + 60_000 })
       res.statusCode = 401
       res.setHeader('WWW-Authenticate', 'Basic realm="MWThree", charset="UTF-8"')
