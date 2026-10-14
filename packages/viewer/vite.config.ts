@@ -185,6 +185,8 @@ export default defineConfig({
   // under a sub-path (GitHub Pages: /<repository>/), set VITE_BASE=/<repository>/ when building
   base: process.env.VITE_BASE ?? '/',
   plugins: [react(), securityHeaders(), accessPassword(), bundledMaps(), localInputs()],
+  // hostnames `vite preview` accepts besides localhost, comma-separated (e.g. the public name behind a tunnel or reverse proxy)
+  preview: { allowedHosts: process.env.MWTHREE_ALLOWED_HOSTS?.split(',').map(h => h.trim()).filter(Boolean) },
   worker: { format: 'es' },
   optimizeDeps: { exclude: ['@dimforge/rapier3d-compat'] },
 })

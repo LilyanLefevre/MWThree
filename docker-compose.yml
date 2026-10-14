@@ -17,6 +17,7 @@ services:
     volumes:
       - "${MW3_DIR:-./extra-maps}:/data:ro"
     environment:
+      MWTHREE_ALLOWED_HOSTS: "${MWTHREE_ALLOWED_HOSTS:-}"   # public hostname(s) behind the tunnel / proxy, comma-separated
       MWTHREE_PASSWORD: "${MWTHREE_PASSWORD:-}"   # optional: protects the whole site (HTTP Basic, over TLS only)
     restart: unless-stopped
 
