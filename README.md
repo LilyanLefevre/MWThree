@@ -4,8 +4,6 @@ Reconstruit un Call of Duty MW3 (2011) jouable dans le navigateur en parsant les
 
 ⚠️ **Aucun fichier d'Activision n'est redistribué.** Deux maps de la communauté sont incluses (`maps/`, voir `maps/CREDITS.md`) ; pour voir les maps complètes (textures de base du jeu) et les 16 maps officielles, il faut fournir sa propre installation MW3.
 
-**Démo en ligne : https://lilyanlefevre.github.io/MWThree/** (les deux maps incluses ; ajoutez votre dossier MW3 depuis le menu pour les texturer).
-
 ![Dome dans le viewer](docs/images/screens/dome-hero.jpg)
 
 | Menu : maps du serveur ou de votre dossier | Écran de chargement de la map |
@@ -87,12 +85,8 @@ scripts/deploy.sh --folder "/chemin/vers/MW3"        # + un dossier partagé
 scripts/deploy.sh --folder DIR --port 8080 --name mwthree
 ```
 
-**GitHub Pages (démo publique gratuite)** : le workflow `.github/workflows/pages.yml` construit le site statique (maps incluses, sans dossier
-partagé) et le publie à chaque push sur `main`. Réglage unique : *Settings → Pages → Source : GitHub Actions*. Ajouter une map à la démo =
-déposer son dossier dans `maps/`, la déclarer dans `maps/CREDITS.md` et pousser (limites de Pages : 1 Go pour le site, moins de 100 Mo par
-fichier ; seules des maps redistribuables, le site est public). Sous un autre préfixe : `VITE_BASE=/chemin/ npm run build`.
-Le build publie les maps sous des noms `.zip` : Pages compresserait sinon les `.iwd`/`.ff` pour les navigateurs, ce qui fausse les
-lectures par plages des archives (testé en ligne).
+Les maps de `maps/` sont publiées sous des noms `.zip` : un hébergement statique compresserait sinon les `.iwd`/`.ff` pour les
+navigateurs, ce qui fausse les lectures par plages des archives. Sous un autre préfixe : `VITE_BASE=/chemin/ npm run build`.
 
 Sans Docker : `npm run build`, puis `MWTHREE_INPUTS="/chemin/vers/MW3" npm run preview -w packages/viewer -- --host` (sans la variable, le
 serveur partage `inputs/` s'il existe). Le contenu de `packages/viewer/dist/` seul peut aussi être hébergé statiquement : il offre les
@@ -102,8 +96,7 @@ deux maps incluses, et chaque visiteur peut y ajouter son dossier MW3.
 
 `MWTHREE_PASSWORD=secret` (ou `scripts/deploy.sh --password secret`) exige ce mot de passe (HTTP Basic, nom d'utilisateur libre) pour **toute**
 requête, pages et fichiers compris : c'est une vraie protection, à utiliser pour une instance privée qui partage votre installation MW3.
-Elle ne peut pas exister sur GitHub Pages : un site statique ne peut pas protéger ses fichiers, et les fichiers d'un dépôt public sont
-publics.
+Elle ne peut pas exister sur un hébergement statique, qui ne peut pas protéger ses fichiers.
 
 HTTP Basic envoie le mot de passe en clair : ne l'exposer qu'en HTTPS (Cloudflare Tunnel, reverse proxy). Après 5 essais ratés, une adresse
 est refusée une minute. `MWTHREE_PASSWORD_FILE=/chemin` lit le mot de passe dans un fichier (secret Docker) plutôt que dans l'environnement.
