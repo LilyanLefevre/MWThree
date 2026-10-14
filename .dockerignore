@@ -8,3 +8,6 @@ docs
 .opencode
 .playwright-cli
 **/.DS_Store
+.env
+.env.*
+CLAUDE.local.md
