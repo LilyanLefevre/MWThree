@@ -166,7 +166,8 @@
 .touch-btn { min-width: 64px; height: 48px; padding: 0 12px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.5); color: var(--text); font: inherit; font-size: 14px; letter-spacing: 0.08em; touch-action: none; }
 .touch-btn.big { grid-row: span 2; width: 84px; height: 84px; border-radius: 50%; border-color: var(--accent); }
 .touch-btn:active { background: var(--accent-soft); }
-.touch-menu { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); height: 40px; }
+.touch-top { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: flex; gap: 8px; }
+.touch-top .touch-btn { height: 40px; }
 @media (max-height: 520px) {
   .touch-stick { width: 120px; height: 120px; bottom: 14px; }
   .touch-btn.big { width: 70px; height: 70px; }

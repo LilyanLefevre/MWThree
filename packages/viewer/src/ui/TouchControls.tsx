@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { touch } from '../touchInput'
 
 const RADIUS = 56
@@ -11,6 +11,14 @@ export function TouchControls() {
   const knob = useRef<HTMLDivElement>(null)
   const look = useRef<{ id: number; x: number; y: number } | null>(null)
   const stick = useRef<{ id: number; x: number; y: number } | null>(null)
+  // not offered where the browser has no Fullscreen API (iPhone Safari)
+  const canFullscreen = document.fullscreenEnabled
+  const [full, setFull] = useState(!!document.fullscreenElement)
+  useEffect(() => {
+    const on = () => setFull(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', on)
+    return () => document.removeEventListener('fullscreenchange', on)
+  }, [])
 
   useEffect(() => {
     touch.active = true
@@ -55,7 +63,14 @@ export function TouchControls() {
         <button className="touch-btn" onClick={() => tap('KeyV')}>Vol</button>
         <button className="touch-btn" onClick={() => tap('KeyT')}>Spawn</button>
       </div>
-      <button className="touch-btn touch-menu caps" onClick={() => tap('Escape')}>Menu</button>
+      <div className="touch-top caps">
+        {canFullscreen && (
+          <button className="touch-btn" aria-label={full ? 'Quitter le plein écran' : 'Plein écran'} style={{ minWidth: 40, fontSize: 20 }} onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen({ navigationUI: 'hide' }))}>
+            {full ? '⤡' : '⤢'}
+          </button>
+        )}
+        <button className="touch-btn" onClick={() => tap('Escape')}>Menu</button>
+      </div>
     </div>
   )
 }
