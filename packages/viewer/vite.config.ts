@@ -114,15 +114,36 @@ function accessPassword(): Plugin {
   }
 }
 
-/** Basic hardening headers for everything the server sends. */
+/**
+ * Content-Security-Policy of the built app (`vite preview` only: the dev server needs inline scripts for hot reload).
+ * Everything is same-origin except Google Fonts; blob: is for the decoded menu images and the workers' data; 'wasm-unsafe-eval'
+ * is for Rapier's WebAssembly (no JavaScript eval). Inline styles are React's style attributes.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  "connect-src 'self' blob: data:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ')
+
+/** Basic hardening headers for everything the server sends (plus the CSP for the built app). */
 function securityHeaders(): Plugin {
-  const install = (middlewares: Connect.Server) => { middlewares.use((_req, res, next) => {
+  const install = (middlewares: Connect.Server, csp = false) => { middlewares.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff')
     res.setHeader('Referrer-Policy', 'no-referrer')
     res.setHeader('X-Frame-Options', 'DENY')
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
+    if (csp) res.setHeader('Content-Security-Policy', CSP)
     next()
   }) }
-  return { name: 'security-headers', configureServer: s => install(s.middlewares), configurePreviewServer: s => install(s.middlewares) }
+  return { name: 'security-headers', configureServer: s => install(s.middlewares), configurePreviewServer: s => install(s.middlewares, true) }
 }
 
 /**
