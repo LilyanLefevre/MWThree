@@ -12,7 +12,8 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    tmpfs: ["/tmp"]
+    # vite preview bundles vite.config.ts into node_modules/.vite-temp on start
+    tmpfs: ["/tmp", "/app/packages/viewer/node_modules/.vite-temp:mode=1777"]
     volumes:
       - "${MW3_DIR:-./extra-maps}:/data:ro"
     environment:
