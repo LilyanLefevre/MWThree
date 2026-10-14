@@ -73,11 +73,11 @@
 .loading-bar > div { height: 100%; background: var(--accent); transition: width 0.25s ease-out; }
 
 /* ---------------------------------------------------------------- HUD */
-.hud { position: absolute; inset: 0; z-index: 90; pointer-events: none; color: var(--text); font-family: var(--display); }
+.hud { --mm: clamp(100px, min(24vw, 30vh), 220px); position: absolute; inset: 0; z-index: 90; pointer-events: none; color: var(--text); font-family: var(--display); }
 /* keeps the bottom texts readable over bright ground */
 .hud::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.45)); }
 .hud-minimap { position: absolute; top: 20px; left: 20px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.45); padding: 4px; }
-.hud-minimap canvas { display: block; }
+.hud-minimap canvas { display: block; width: var(--mm); height: auto; }
 .hud-crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); }
 .hud-crosshair i { position: absolute; background: rgba(236, 233, 225, 0.85); box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); }
 .hud-crosshair i:nth-child(1), .hud-crosshair i:nth-child(2) { width: 2px; height: 6px; left: 10px; }
@@ -124,7 +124,6 @@
   .loading-status { text-align: left; min-width: 0; }
   .hud-keys { display: none; }
   .hud-minimap { top: 12px; left: 12px; }
-  .hud-minimap canvas { width: clamp(110px, 32vw, 220px); height: auto; }
   .hud-map { left: 14px; bottom: 14px; }
   .hud-map .name { font-size: 22px; }
   .hud-debug { top: auto; right: 12px; bottom: 64px; left: 12px; min-width: 0; max-height: 40%; overflow-y: auto; }
@@ -173,4 +172,5 @@
   .touch-btn.big { width: 70px; height: 70px; }
 }
 .touch-buttons .touch-btn:nth-child(4) { grid-column: 2; }
-@media (pointer: coarse) { .hud-map { bottom: 190px; } }
+/* touch: the stick sits bottom left, so the map name goes beside the minimap */
+@media (pointer: coarse) { .hud-map { top: 14px; bottom: auto; left: calc(var(--mm) + 32px); } }
