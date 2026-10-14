@@ -37,12 +37,9 @@ npm run dev                          # http://localhost:5173
 - **Cache** : le résultat décodé (géométrie + textures, ces dernières par morceaux de 64 Mo car Chrome refuse les valeurs IndexedDB de plus de ~127 Mo) est gardé dans IndexedDB, avec une clé qui dépend du `.ff` et de l'ensemble des `.iwd` ; les versions précédentes sont purgées. Incrémenter `CACHE_VERSION` (`packages/viewer/src/worker/cache.ts`) quand l'extraction change.
 - Les textures sont lues dans `main/*.iwd` du dossier choisi (ou `inputs/main/` avec `?dev=`).
 
-### Sur le PC de test (Windows, `ssh pc`)
+### Sur un PC de test
 
-Clone dans `C:\Users\Lilyan\mwthree` (avec `inputs/` : `main/*.iwd` et les 16 `zone/<map>/mp_<map>.ff`, sans `dlc`). Serveur : `ssh pc "cd mwthree\packages\viewer && npx vite --host 0.0.0.0 --port 5173"` lancé lui aussi via `Invoke-CimMethod Win32_Process Create` pour survivre à la session SSH (log dans `C:\Users\Lilyan\vite.log`),
-ouvert depuis le Mac sur `http://192.168.1.207:5173/?dev=dome&free=1`. Playwright tourne sur le PC (vrai GPU, fps représentatifs) ;
-lancer `playwright-cli -s=mw3 open …` via `Invoke-CimMethod Win32_Process Create`, sinon le navigateur meurt avec la session SSH.
-Premier chargement de `mp_dome` mesuré sur le PC (dev) : décompression 947 ms, lecture 342 ms, textures 925 ms ; 60 fps (vsync).
+Un PC avec un vrai GPU sert aux fps représentatifs (accès et commandes dans `CLAUDE.local.md`, non versionné). Premier chargement de `mp_dome` mesuré sur ce PC (dev) : décompression 947 ms, lecture 342 ms, textures 925 ms ; 60 fps (vsync).
 
 ## Vérifier le loader
 
