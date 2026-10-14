@@ -125,6 +125,8 @@ Trois écrans pilotés par `App.tsx` : **menu** (`ui/MainMenu.tsx`), **chargemen
 - Le texte sous le nom de la map est un texte de remplacement (`mapNames.ts`) : les chaînes d'origine sont dans les zones localisées (`zone/english/*.ff`).
 - L'écran de chargement couvre la scène jusqu'à l'arrivée des textures ; la progression combine le téléchargement du `.ff` (maps du serveur), les étapes du worker et le décompte des textures.
 - Le menu pause s'ouvre quand la souris est libérée (Échap) ; seul « Reprendre » laisse remonter le clic jusqu'au contrôle de capture du pointeur.
+- **Responsive** : `ui/ui.css` adapte menu, chargement, HUD et pause sous 900 px, sous 420 px (cartes sur 2 colonnes) et en paysage court (hauteur ≤ 520 px). Le conteneur racine suit `100%` (pas `100vh`, qui déborde sous la barre d'adresse mobile).
+- **Contrôles tactiles** (`ui/TouchControls.tsx`, état partagé dans `touchInput.ts`), actifs si `pointer: coarse` : joystick à gauche (déplacement analogique), glisser ailleurs pour regarder, boutons Saut / Bas / Vol / Spawn / Menu. Les boutons rejouent les touches V, T et Échap déjà gérées. Sans pointer lock sur tactile (`PointerLockControls` n'est pas monté) ; le joueur bouge tant que l'overlay est monté, donc pas pendant la pause. Testé en émulation Pixel 7 (Playwright), pas sur un vrai appareil.
 
 ![Menu principal](images/screens/menu.jpg)
 ![Menu pause](images/screens/pause.jpg)

@@ -11,7 +11,7 @@
 | 4 — Géométrie visuelle | ✓ — surfaces BSP du `GfxWorld` + modèles statiques et props d'entités (`script_model`, état intact) instanciés (`smodelDrawInsts` → `XModel` LOD0), couleur par matériau. Textures de tous les modèles (y compris props d'entités) et formats IWi wavelet décodés |
 | 5 — Textures `.iwd` / `.iwi` | ✓ — color maps des matériaux (DXT1/3/5, ARGB, RGB, A8) lues dans `main/*.iwd`, appliquées au monde et aux props ; alpha-test pour le feuillage. Lightmaps du monde appliquées (formule du moteur). Props éclairés par la light grid. Manquent : spec maps, shaders d'origine |
 | 6 — Entités / UX | ✓ — noms de maps, téléportation entre spawns, repères de spawns, objectifs des modes de jeu, mini-carte |
-| 7 — Interface | ✓ — menu (maps du serveur ou dossier local), écrans de chargement d'origine, HUD, menu pause ; release locale via `vite preview` |
+| 7 — Interface | ✓ — menu (maps du serveur ou dossier local), écrans de chargement d'origine, HUD, menu pause, mise en page responsive et contrôles tactiles (émulation seulement) ; release locale via `vite preview` |
 
 ## Lancer
 
@@ -67,7 +67,7 @@ packages/iw5-core/
 packages/viewer/
   src/worker/mapWorker.ts          décompression + lecture + extraction hors thread UI
   src/components/WorldMesh.tsx     mesh + TrimeshCollider
-  src/components/Player.tsx        capsule Rapier + PointerLockControls
+  src/components/Player.tsx        capsule Rapier + PointerLockControls (clavier/souris) ou touchInput (tactile)
 packages/iw5-core/src/zone/Collision.ts  clipMap_t → mesh de collision (brushes + terrain)
 packages/iw5-collision/            stub (inutilisé pour l'instant)
 scripts/                           genSchema.mjs, loadZone.mts (outils de vérification)

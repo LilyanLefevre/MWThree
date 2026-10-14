@@ -5,6 +5,7 @@ import { CapsuleCollider, RigidBody, useRapier } from '@react-three/rapier'
 import type { RapierRigidBody } from '@react-three/rapier'
 import * as THREE from 'three'
 import { playerState } from '../playerState'
+import { IS_TOUCH, touch } from '../touchInput'
 
 const RADIUS = 0.35
 const HALF = 0.45 // capsule half-height (cylinder part)
@@ -17,6 +18,8 @@ const JUMP = 6.5
 const GRAVITY = 20
 /** the game's step height (18 units): low ledges, bars, curbs and rubble are walked over, not blocked by */
 const STEP = 0.46
+/** touch look sensitivity, radians per pixel */
+const LOOK = 0.005
 
 const keys: Record<string, boolean> = {}
 /** dev/testing: accept keyboard input without pointer lock (?free) */
@@ -102,14 +105,21 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
     if (!fly.current) {
       const t0 = pos.current
       // smooth crouch transition
-      const target = keys.ControlLeft || keys.ControlRight ? CROUCH_EYE : EYE
+      const target = keys.ControlLeft || keys.ControlRight || touch.crouch ? CROUCH_EYE : EYE
       eye.current += (target - eye.current) * Math.min(1, dt * 12)
       camera.position.set(t0.x, t0.y + eye.current, t0.z)
     }
     playerState.x = camera.position.x; playerState.y = camera.position.y; playerState.z = camera.position.z
     playerState.yaw = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y
     if (import.meta.env.DEV) (window as unknown as { __player?: unknown }).__player = { body: { x: pos.current.x, y: pos.current.y, z: pos.current.z }, cam: camera.position.toArray(), fly: fly.current, grounded: grounded.current, vy: vy.current }
-    if (!controls.current?.isLocked && !FREE_INPUT) return
+    if (!controls.current?.isLocked && !FREE_INPUT && !touch.active) return
+    if (touch.lookX || touch.lookY) {
+      const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ')
+      e.y -= touch.lookX * LOOK
+      e.x = THREE.MathUtils.clamp(e.x - touch.lookY * LOOK, -1.55, 1.55)
+      camera.quaternion.setFromEuler(e)
+      touch.lookX = touch.lookY = 0
+    }
     const d = Math.min(dt, 0.05)
     const wish = dir.current.set(0, 0, 0)
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion)
@@ -119,21 +129,22 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
     if (keys.KeyS) wish.sub(forward)
     if (keys.KeyA || keys.KeyQ) wish.sub(right)
     if (keys.KeyD) wish.add(right)
-    if (wish.lengthSq() > 0) wish.normalize()
+    if (touch.moveX || touch.moveY) wish.addScaledVector(forward, -touch.moveY).addScaledVector(right, touch.moveX)
+    if (wish.lengthSq() > 1) wish.normalize()
 
     if (fly.current) {
       const boost = keys.ShiftLeft ? 3 : 1
-      if (keys.Space) wish.y += 1
-      if (keys.ControlLeft) wish.y -= 1
+      if (keys.Space || touch.jump) wish.y += 1
+      if (keys.ControlLeft || touch.crouch) wish.y -= 1
       camera.position.addScaledVector(wish, FLY * boost * d)
       return
     }
 
     const collider = b.collider(0), cc = controller.current
     if (!collider || !cc) return
-    const crouched = keys.ControlLeft || keys.ControlRight
+    const crouched = keys.ControlLeft || keys.ControlRight || touch.crouch
     const speed = RUN * (crouched ? CROUCH_SPEED : keys.ShiftLeft ? 1.5 : 1)
-    if (grounded.current && keys.Space) vy.current = JUMP
+    if (grounded.current && (keys.Space || touch.jump)) vy.current = JUMP
     vy.current -= GRAVITY * d
     cc.computeColliderMovement(collider, { x: wish.x * speed * d, y: vy.current * d, z: wish.z * speed * d })
     const mv = cc.computedMovement()
@@ -154,7 +165,7 @@ export function Player({ spawn, yaw, onFly }: PlayerProps) {
       >
         <CapsuleCollider args={[HALF, RADIUS]} friction={0} />
       </RigidBody>
-      <PointerLockControls ref={controls as never} />
+      {!IS_TOUCH && <PointerLockControls ref={controls as never} />}
     </>
   )
 }

@@ -20,6 +20,8 @@ import { MainMenu, type MapSource } from './ui/MainMenu'
 import { LoadingScreen } from './ui/LoadingScreen'
 import { Hud, type Layers } from './ui/Hud'
 import { PauseMenu } from './ui/PauseMenu'
+import { TouchControls } from './ui/TouchControls'
+import { IS_TOUCH } from './touchInput'
 import './ui/ui.css'
 
 /** `values()` is missing from the DOM typings of the File System Access API. */
@@ -294,7 +296,7 @@ function App() {
   const images = session?.source === 'server' ? server.images : local?.images ?? null
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#07090a' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#07090a' }}>
       <Canvas flat camera={{ position: [0, 3, 5], fov: 75, near: 0.05, far: 6000 }} style={{ width: '100%', height: '100%' }}>
         <color attach="background" args={['#9fb4c7']} />
         {world?.sky && <Sky sky={world.sky} />}
@@ -321,6 +323,7 @@ function App() {
         <Hud world={world} fly={fly} spawn={{ index: wrap(spawnIndex, spawnList.length), count: spawnList.length }}
           texturing={texturing} layers={layers} debug={debug} />
       )}
+      {inGame && IS_TOUCH && !paused && <TouchControls />}
       {inGame && paused && session && (
         <PauseMenu file={session.file} layers={layers} onToggle={k => setLayers(l => ({ ...l, [k]: !l[k] }))}
           onResume={() => setPaused(false)} onQuit={() => toMenu()} />

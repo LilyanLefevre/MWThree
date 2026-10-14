@@ -111,14 +111,66 @@
 .pause-keys { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 8px 20px; padding: 10px 0; font-size: 15px; color: var(--muted); }
 .pause-keys kbd { font-family: var(--mono); font-size: 11px; color: var(--text); }
 
+/* ---------------------------------------------------------------- responsive */
 @media (max-width: 900px) {
   .menu { grid-template-columns: 1fr; }
   .menu-main { padding: 28px 20px 20px; }
   .menu-feature { display: none; }
   .brand { font-size: 40px; }
+  .tabs { margin-top: 24px; gap: 20px; overflow-x: auto; flex-shrink: 0; }
+  .tab { white-space: nowrap; }
   .loading-band { padding: 0 20px 28px; grid-template-columns: 1fr; }
-  .loading-name { font-size: 44px; }
-  .loading-status { text-align: left; }
+  .loading-name { font-size: clamp(32px, 11vw, 44px); }
+  .loading-status { text-align: left; min-width: 0; }
   .hud-keys { display: none; }
-  .pause { padding: 24px; flex-direction: column; align-items: flex-start; gap: 24px; }
+  .hud-minimap { top: 12px; left: 12px; }
+  .hud-minimap canvas { width: clamp(110px, 32vw, 220px); height: auto; }
+  .hud-map { left: 14px; bottom: 14px; }
+  .hud-map .name { font-size: 22px; }
+  .hud-debug { top: auto; right: 12px; bottom: 64px; left: 12px; min-width: 0; max-height: 40%; overflow-y: auto; }
+  .hud-texturing { top: 14px; right: 14px; }
+  .pause { padding: 24px 20px; flex-direction: column; align-items: flex-start; gap: 24px; }
+  .pause-col { min-width: 0; width: 100%; }
+  .pause-title { font-size: 32px; }
 }
+
+/* landscape phone: little height, so the menu header and cards shrink */
+@media (max-height: 520px) {
+  .menu-main { padding-top: 16px; padding-bottom: 12px; }
+  .brand { font-size: 32px; }
+  .tagline { display: none; }
+  .tabs { margin: 12px 0 10px; }
+  .map-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .menu-foot { margin-top: 8px; }
+  .loading-name { font-size: 36px; }
+  .loading-band { padding-bottom: 20px; }
+  .pause { flex-direction: row; gap: 32px; padding: 16px 24px; align-items: flex-start; }
+  .pause-title { font-size: 28px; }
+  .pause-sub { margin-bottom: 12px; }
+  .pause-section { margin-top: 14px; }
+  .pause-item { font-size: 18px; padding: 4px 14px; }
+  .pause-col { min-width: 0; width: auto; flex: 1; }
+}
+
+@media (max-width: 420px) {
+  .menu-main { padding: 20px 14px 14px; }
+  .map-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .map-card .name { font-size: 14px; }
+  .map-card .code { display: none; }
+}
+
+/* ---------------------------------------------------------------- touch controls */
+.touch { position: absolute; inset: 0; z-index: 95; touch-action: none; user-select: none; -webkit-user-select: none; font-family: var(--display); }
+.touch-stick { position: absolute; left: max(24px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: 150px; height: 150px; border-radius: 50%; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.3); display: grid; place-items: center; }
+.touch-knob { width: 60px; height: 60px; border-radius: 50%; background: var(--accent-soft); border: 2px solid var(--accent); pointer-events: none; }
+.touch-buttons { position: absolute; right: max(20px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: auto auto; gap: 10px; align-items: end; justify-items: end; }
+.touch-btn { min-width: 64px; height: 48px; padding: 0 12px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.5); color: var(--text); font: inherit; font-size: 14px; letter-spacing: 0.08em; touch-action: none; }
+.touch-btn.big { grid-row: span 2; width: 84px; height: 84px; border-radius: 50%; border-color: var(--accent); }
+.touch-btn:active { background: var(--accent-soft); }
+.touch-menu { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); height: 40px; }
+@media (max-height: 520px) {
+  .touch-stick { width: 120px; height: 120px; bottom: 14px; }
+  .touch-btn.big { width: 70px; height: 70px; }
+}
+.touch-buttons .touch-btn:nth-child(4) { grid-column: 2; }
+@media (pointer: coarse) { .hud-map { bottom: 190px; } }
