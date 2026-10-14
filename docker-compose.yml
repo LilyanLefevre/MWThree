@@ -18,3 +18,14 @@ services:
     environment:
       MWTHREE_PASSWORD: "${MWTHREE_PASSWORD:-}"   # optional: protects the whole site (HTTP Basic, over TLS only)
     restart: unless-stopped
+
+  # Optional Cloudflare Tunnel (profile "tunnel"): create the public hostname in the Cloudflare dashboard, service http://mwthree:4173
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARED_TOKEN:-}"   # required with COMPOSE_PROFILES=tunnel
+    depends_on:
+      - mwthree

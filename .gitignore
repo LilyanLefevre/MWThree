@@ -17,3 +17,7 @@ private-pack/
 maps/dome/
 maps/hardhat/
 maps/main/
+
+# local secrets and infra notes
+.env
+CLAUDE.local.md
