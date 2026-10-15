@@ -127,6 +127,14 @@ function accessPassword(): Plugin {
  * Everything is same-origin except Google Fonts; blob: is for the decoded menu images and the workers' data; 'wasm-unsafe-eval'
  * is for Rapier's WebAssembly (no JavaScript eval). Inline styles are React's style attributes.
  */
+/**
+ * Origins allowed to embed the app in an iframe (MWTHREE_FRAME_ANCESTORS, space or comma separated, e.g. a portfolio's origin).
+ * Empty = nobody ('none' + X-Frame-Options DENY). X-Frame-Options cannot name an origin, so it is dropped when this is set.
+ */
+const frameAncestors = (process.env.MWTHREE_FRAME_ANCESTORS ?? '').split(/[\s,]+/).filter(Boolean)
+// they end up in a header: only plain origins ('self' too), nothing that could add a directive
+for (const o of frameAncestors) if (!/^('self'|https?:\/\/[a-z0-9.*-]+(:\d+)?)$/i.test(o)) throw new Error(`MWTHREE_FRAME_ANCESTORS: invalid origin "${o}"`)
+
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'wasm-unsafe-eval'",
@@ -138,7 +146,7 @@ const CSP = [
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
-  "frame-ancestors 'none'",
+  `frame-ancestors ${frameAncestors.join(' ') || "'none'"}`,
 ].join('; ')
 
 /** Basic hardening headers for everything the server sends (plus the CSP for the built app). */
@@ -146,7 +154,7 @@ function securityHeaders(): Plugin {
   const install = (middlewares: Connect.Server, csp = false) => { middlewares.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff')
     res.setHeader('Referrer-Policy', 'no-referrer')
-    res.setHeader('X-Frame-Options', 'DENY')
+    if (!frameAncestors.length) res.setHeader('X-Frame-Options', 'DENY')
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
     if (csp) res.setHeader('Content-Security-Policy', CSP)
     next()

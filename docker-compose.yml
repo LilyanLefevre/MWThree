@@ -18,6 +18,7 @@ services:
       - "${MW3_DIR:-./extra-maps}:/data:ro"
     environment:
       MWTHREE_ALLOWED_HOSTS: "${MWTHREE_ALLOWED_HOSTS:-}"   # public hostname(s) behind the tunnel / proxy, comma-separated
+      MWTHREE_FRAME_ANCESTORS: "${MWTHREE_FRAME_ANCESTORS:-}"   # optional: origin(s) allowed to embed the app in an iframe (default: nobody)
       MWTHREE_USER: "${MWTHREE_USER:-}"   # optional: with the password, requires this exact user name (otherwise any name works)
       MWTHREE_PASSWORD: "${MWTHREE_PASSWORD:-}"   # optional: protects the whole site (HTTP Basic, over TLS only)
     restart: unless-stopped
